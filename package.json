@@ -1,0 +1,17 @@
+{
+  "name": "urbanheat-ai",
+  "private": true,
+  "description": "Climate Risk & Surface Temperature Predictor",
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
