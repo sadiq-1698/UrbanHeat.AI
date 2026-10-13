@@ -3,7 +3,7 @@
   "private": true,
   "description": "Climate Risk & Surface Temperature Predictor",
   "workspaces": [
-    "apps/web",
+    "apps/*",
     "packages/*"
   ],
   "scripts": {
