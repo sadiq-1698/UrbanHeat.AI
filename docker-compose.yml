@@ -1,0 +1,29 @@
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: urbanheat-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: urbanheat
+      POSTGRES_USER: urbanheat_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      # Read by db/schema/004_roles.sh (Session 2) to create the API's read-only role.
+      APP_RO_PASSWORD: ${APP_RO_PASSWORD:?APP_RO_PASSWORD must be set in .env}
+    ports:
+      # Overridable for machines that already have a local Postgres on 5432
+      # (e.g. `POSTGRES_HOST_PORT=5434` in .env) — the container's own
+      # internal port stays 5432 either way.
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - urbanheat_pgdata:/var/lib/postgresql/data
+      # Schema files run automatically, in filename order, ONLY on a fresh volume.
+      # Re-apply later changes via db/migrate.sh instead of `docker compose down -v`.
+      - ./db/schema:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U urbanheat_admin -d urbanheat"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  urbanheat_pgdata:
