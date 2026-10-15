@@ -19,6 +19,8 @@ cp .env.example .env     # set passwords; uncomment POSTGRES_HOST_PORT if 5432 i
 npm install
 docker compose up -d
 ./db/migrate.sh          # applies db/schema (safe to re-run)
+# demo data (one-time venv setup in db/ingest/README.md):
+(cd db/ingest && .venv/bin/python -m demo_city.generate && .venv/bin/python -m demo_city.load)
 docker compose exec postgis pg_isready -U urbanheat_admin -d urbanheat
 npm run typecheck && npm test
 ```
@@ -29,7 +31,8 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 
 - [x] Session 1 — Scaffold: workspaces, tsconfig, env, PostGIS compose, geo-core skeleton
 - [x] Session 2 — DB schema: land_cover, weather_stations + observations, raster_layers, read-only role, `db/migrate.sh` (see [db/README.md](db/README.md))
-- [ ] 3 Demo data · 4 Real-data adapters
+- [x] Session 3 — Demo data: synthetic city generator (4 GeoTIFFs, 92 land cover polygons, 24 stations × 24h) + PostGIS loader (see [db/ingest/README.md](db/ingest/README.md))
+- [ ] 4 Real-data adapters
 - [ ] 5–6 Raster & vector core · 7 Data API
 - [ ] 8–12 Map UI, raster overlay, interpolation, heatmap
 - [ ] 13–16 Features, training, ONNX inference, predict API
