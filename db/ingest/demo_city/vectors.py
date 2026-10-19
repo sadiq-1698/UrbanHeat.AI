@@ -46,15 +46,18 @@ def landcover_features(f: dict[str, np.ndarray], grid: Grid,
         poly = shape(geom)
         inside = rasterize([(geom, 1)], out_shape=classes.shape, transform=grid.transform,
                            fill=0, dtype="uint8").astype(bool)
-        if not inside.any():
+        # Real rasters carry NaN no-data; average only over valid cells and drop
+        # polygons with none (the schema requires canopy/impervious values).
+        valid = inside & ~np.isnan(f["canopy"]) & ~np.isnan(f["impervious"])
+        if not valid.any():
             continue
         features.append({
             "type": "Feature",
             "geometry": mapping(MultiPolygon([poly])),
             "properties": {
                 "class": ID_TO_CLASS[int(cid)],
-                "canopy_pct": round(float(f["canopy"][inside].mean()), 2),
-                "impervious_pct": round(float(f["impervious"][inside].mean()), 2),
+                "canopy_pct": round(float(f["canopy"][valid].mean()), 2),
+                "impervious_pct": round(float(f["impervious"][valid].mean()), 2),
             },
         })
     return features
