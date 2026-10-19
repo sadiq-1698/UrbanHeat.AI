@@ -1,4 +1,5 @@
 """Shared grid definition for the synthetic demo city (EPSG:4326)."""
+import math
 from dataclasses import dataclass
 
 import numpy as np
@@ -14,6 +15,14 @@ class Grid:
     width: int = 240
     height: int = 180
     res: float = 0.2 / 240  # degrees per pixel (~57 m E-W, ~93 m N-S at 47.6°N)
+
+    @classmethod
+    def from_bbox(cls, west: float, south: float, east: float, north: float, res: float) -> "Grid":
+        """Square-degree grid covering the bbox (east/south edges round outward)."""
+        if not (west < east and south < north and res > 0):
+            raise ValueError("bbox must satisfy west < east, south < north, and res > 0")
+        return cls(west=west, north=north, width=math.ceil((east - west) / res),
+                   height=math.ceil((north - south) / res), res=res)
 
     @property
     def east(self) -> float:

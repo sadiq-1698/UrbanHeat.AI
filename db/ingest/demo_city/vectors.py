@@ -29,9 +29,17 @@ def classify(f: dict[str, np.ndarray]) -> np.ndarray:
     return c
 
 
-def landcover_features(f: dict[str, np.ndarray], grid: Grid) -> list[dict]:
-    """GeoJSON features (MultiPolygon) with class and zonal-mean canopy/impervious."""
-    classes = sieve(classify(f), MIN_POLYGON_PX, connectivity=4)
+def landcover_features(f: dict[str, np.ndarray], grid: Grid,
+                       classes: np.ndarray | None = None) -> list[dict]:
+    """GeoJSON features (MultiPolygon) with class and zonal-mean canopy/impervious.
+
+    `classes` is a uint8 raster of CLASS_IDS values; when omitted it is derived
+    from the synthetic fields via `classify`. Real-data ingestion passes its own
+    (e.g. NLCD codes mapped to CLASS_IDS). `f` needs `canopy` and `impervious`.
+    """
+    if classes is None:
+        classes = classify(f)
+    classes = sieve(classes, MIN_POLYGON_PX, connectivity=4)
     features = []
     for geom, cid in shapes(classes, mask=None, transform=grid.transform, connectivity=4):
         poly = shape(geom)

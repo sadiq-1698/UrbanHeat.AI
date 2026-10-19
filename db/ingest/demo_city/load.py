@@ -57,14 +57,16 @@ def load(conn, vec_dir: Path, region: str) -> dict[str, int]:
         for x in st["stations"]:
             cur.execute("""
                 INSERT INTO weather_stations (station_id, name, region, elevation_m, source, geom)
-                VALUES (%s, %s, %s, %s, 'synthetic', ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
-                (x["station_id"], x["name"], region, x["elevation_m"], x["lon"], x["lat"]))
+                VALUES (%s, %s, %s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))""",
+                (x["station_id"], x["name"], region, x.get("elevation_m"),
+                 x.get("source", "synthetic"), x["lon"], x["lat"]))
 
-        execute_values(cur, """
+        obs_rows = [(o["station_id"], o["observed_at"], o["temp_c"], o["humidity_pct"], o["wind_ms"])
+                    for o in st["observations"]]
+        if obs_rows:
+            execute_values(cur, """
             INSERT INTO station_observations
-              (station_id, observed_at, temp_c, humidity_pct, wind_ms) VALUES %s""",
-            [(o["station_id"], o["observed_at"], o["temp_c"], o["humidity_pct"], o["wind_ms"])
-             for o in st["observations"]])
+              (station_id, observed_at, temp_c, humidity_pct, wind_ms) VALUES %s""", obs_rows)
 
         for r in manifest["rasters"]:
             cur.execute("""
