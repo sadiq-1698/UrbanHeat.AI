@@ -24,4 +24,5 @@ def write_geotiff(path: Path, data: np.ndarray, grid: Grid) -> None:
         dtype="float32", crs="EPSG:4326", transform=grid.transform, nodata=NODATA,
         compress="deflate", tiled=True, blockxsize=128, blockysize=128,
     ) as dst:
-        dst.write(data.astype("float32"), 1)
+        # NaN (no-data from real-source clipping) is stored as the file's nodata value.
+        dst.write(np.where(np.isnan(data), NODATA, data).astype("float32"), 1)

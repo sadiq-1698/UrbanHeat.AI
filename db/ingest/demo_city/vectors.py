@@ -10,6 +10,7 @@ from .grid import Grid
 CLASS_IDS = {
     "water": 1, "developed_high": 2, "developed_medium": 3, "developed_low": 4,
     "developed_open": 5, "forest": 6, "shrub_grass": 7, "cropland": 8, "barren": 9,
+    "wetland": 10,
 }
 ID_TO_CLASS = {v: k for k, v in CLASS_IDS.items()}
 MIN_POLYGON_PX = 25  # sieve threshold: merges specks into their neighbours

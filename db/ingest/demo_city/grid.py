@@ -3,7 +3,7 @@ import math
 from dataclasses import dataclass
 
 import numpy as np
-from rasterio.transform import Affine, from_origin
+from rasterio.transform import Affine
 
 REGION = "demo-city"
 
@@ -34,7 +34,7 @@ class Grid:
 
     @property
     def transform(self) -> Affine:
-        return from_origin(self.west, self.north, self.res, self.res)
+        return Affine(self.res, 0.0, self.west, 0.0, -self.res, self.north)
 
     def lonlat_grids(self) -> tuple[np.ndarray, np.ndarray]:
         """Pixel-centre (lon, lat) arrays shaped (height, width)."""
