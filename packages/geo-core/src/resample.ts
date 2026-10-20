@@ -2,10 +2,13 @@ import { type BBox, RasterGrid } from "./raster-grid.js";
 
 export type ResampleMethod = "nearest" | "bilinear" | "average";
 
+/** What a window calculation needs: also satisfied by GeoTiffRaster (no pixels loaded). */
+export type GridExtent = Pick<RasterGrid, "bbox" | "width" | "height" | "resX" | "resY">;
+
 const EPS = 1e-9; // absorbs float noise so a bbox on a cell edge doesn't gain a cell
 
 /** Cell-index window [col0, row0, col1, row1) covering `bbox`, clamped to the grid; null if disjoint. */
-export function windowForBBox(grid: RasterGrid, bbox: BBox): [number, number, number, number] | null {
+export function windowForBBox(grid: GridExtent, bbox: BBox): [number, number, number, number] | null {
   const [w, s, e, n] = grid.bbox;
   const west = Math.max(bbox[0], w);
   const south = Math.max(bbox[1], s);

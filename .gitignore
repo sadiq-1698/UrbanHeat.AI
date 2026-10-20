@@ -41,6 +41,8 @@ next-env.d.ts
 data/
 *.tif
 *.tiff
+# ...except tiny GDAL-written test fixtures for geo-core
+!packages/geo-core/test-fixtures/*.tif
 *.shp
 *.shx
 *.dbf
