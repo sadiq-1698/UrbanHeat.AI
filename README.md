@@ -33,7 +33,8 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 - [x] Session 2 — DB schema: land_cover, weather_stations + observations, raster_layers, read-only role, `db/migrate.sh` (see [db/README.md](db/README.md))
 - [x] Session 3 — Demo data: synthetic city generator (4 GeoTIFFs, 92 land cover polygons, 24 stations × 24h) + PostGIS loader (see [db/ingest/README.md](db/ingest/README.md))
 - [x] Session 4 — Real-data adapters: `real_data.ingest` clips NLCD land cover/canopy/impervious, Landsat LST, DEM and station CSV into a region (tested on synthetic NLCD-shaped inputs; real files in Session 20)
-- [ ] 5–6 Raster & vector core · 7 Data API
+- [x] Session 5 — Raster core: `GeoTiffRaster` (geotiff.js windowed reads, resampling, point sampling), `RasterStore`, in `packages/geo-core` (see its [README](packages/geo-core/README.md))
+- [ ] 6 Vector & zonal stats · 7 Data API
 - [ ] 8–12 Map UI, raster overlay, interpolation, heatmap
 - [ ] 13–16 Features, training, ONNX inference, predict API
 - [ ] 17–18 Scenario simulator, risk & hotspots
