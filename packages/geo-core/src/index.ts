@@ -4,3 +4,4 @@ export * from "./geotiff-raster.js";
 export * from "./raster-store.js";
 export * from "./geometry.js";
 export * from "./zonal.js";
+export * from "./layers.js";

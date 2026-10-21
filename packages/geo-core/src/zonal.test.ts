@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { type Area, cellAreaM2, circlePolygon } from "./geometry.js";
+import { type Area, cellAreaM2, circlePolygon, pointInPolygons, polygonsOf } from "./geometry.js";
 import { RasterGrid } from "./raster-grid.js";
 import { coverageMask, zonalShare, zonalStats } from "./zonal.js";
 
@@ -110,4 +110,36 @@ test("zonalShare reports the weighted fraction passing a predicate", () => {
   near(zonalShare(grid(), rect(2, 2, 4, 4), (v) => v >= 70)!, 0.5);
   assert.equal(zonalShare(grid(), rect(20, 20, 21, 21), () => true), null);
   assert.equal(zonalShare(grid((d) => d.fill(NaN)), rect(2, 2, 4, 4), () => true), null);
+});
+
+test("scanline coverage equals brute-force point-in-polygon on a jagged polygon with a hole", () => {
+  const star = (cx: number, cy: number, r0: number, r1: number, k: number) =>
+    Array.from({ length: 2 * k + 1 }, (_, i) => {
+      const a = ((i % (2 * k)) / (2 * k)) * 2 * Math.PI + 0.123;
+      const r = i % 2 ? r0 : r1;
+      return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+    });
+  const poly: Area = {
+    type: "MultiPolygon",
+    coordinates: [[star(4, 5, 1.7, 3.9, 9), star(4, 5, 0.4, 1.1, 5).reverse()], [star(8.6, 1.7, 0.5, 1.2, 4)]],
+  };
+  const n = 4;
+  const mask = coverageMask(grid(), poly, { supersample: n })!;
+  const polys = polygonsOf(poly);
+  let mismatched = 0;
+  for (let r = 0; r < mask.height; r++) {
+    for (let c = 0; c < mask.width; c++) {
+      let hits = 0;
+      for (let j = 0; j < n; j++) {
+        for (let i = 0; i < n; i++) {
+          const x = mask.col0 + c + (i + 0.5) / n;
+          const y = 10 - (mask.row0 + r + (j + 0.5) / n);
+          if (pointInPolygons(x, y, polys)) hits++;
+        }
+      }
+      if (Math.abs(mask.weights[r * mask.width + c]! - hits / (n * n)) > 1e-6) mismatched++;
+    }
+  }
+  assert.equal(mismatched, 0);
+  assert.ok(mask.totalWeight > 10);
 });

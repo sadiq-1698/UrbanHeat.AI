@@ -1,5 +1,5 @@
 import turfArea from "@turf/area";
-import { type Area, boundsOf, pointInPolygons, polygonsOf, toArea } from "./geometry.js";
+import { type Area, boundsOf, polygonsOf, toArea } from "./geometry.js";
 import type { RasterGrid } from "./raster-grid.js";
 import { type GridExtent, windowForBBox } from "./resample.js";
 
@@ -60,20 +60,55 @@ export function coverageMask(grid: GridExtent, input: Area, { supersample = 4 }:
   const n = supersample;
   const west = grid.bbox[0];
   const north = grid.bbox[3];
-  let total = 0;
-  for (let r = 0; r < height; r++) {
-    for (let c = 0; c < width; c++) {
-      let hits = 0;
-      for (let j = 0; j < n; j++) {
-        const y = north - (row0 + r + (j + 0.5) / n) * grid.resY;
-        for (let i = 0; i < n; i++) {
-          if (pointInPolygons(west + (col0 + c + (i + 0.5) / n) * grid.resX, y, polys)) hits++;
-        }
+
+  // Scanline fill at sub-cell resolution: per sub-row, intersect every ring edge
+  // once, sort the crossings, and mark the sub-columns between crossing pairs
+  // (even-odd over all rings, so holes work). Much cheaper than testing each
+  // sub-point against every vertex, which is quadratic for detailed polygons.
+  const subW = width * n;
+  const subRes = grid.resX / n;
+  const edges: [number, number, number, number][] = [];
+  for (const rings of polys) {
+    for (const ring of rings) {
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i]!;
+        const [xj, yj] = ring[j]!;
+        if (yi !== yj) edges.push([xi!, yi!, xj!, yj!]);
       }
-      const w = hits / (n * n);
-      weights[r * width + c] = w;
-      total += w;
     }
+  }
+  const diff = new Int32Array(subW + 1);
+  const hits = new Int32Array(width * height);
+  const xs: number[] = [];
+  for (let sr = 0; sr < height * n; sr++) {
+    const y = north - (row0 * n + sr + 0.5) * (grid.resY / n);
+    xs.length = 0;
+    for (const [xi, yi, xj, yj] of edges) {
+      if (yi > y !== yj > y) xs.push(((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    }
+    if (xs.length < 2) continue;
+    xs.sort((p, q) => p - q);
+    diff.fill(0);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      // sub-column centres c satisfy xs[k] <= c < xs[k+1]
+      const from = Math.max(Math.ceil((xs[k]! - west) / subRes - col0 * n - 0.5), 0);
+      const to = Math.min(Math.ceil((xs[k + 1]! - west) / subRes - col0 * n - 0.5), subW);
+      if (to > from) {
+        diff[from]!++;
+        diff[to]!--;
+      }
+    }
+    const rowBase = Math.floor(sr / n) * width;
+    let run = 0;
+    for (let k = 0; k < subW; k++) {
+      run += diff[k]!;
+      if (run > 0) hits[rowBase + Math.floor(k / n)]!++;
+    }
+  }
+  let total = 0;
+  for (let i = 0; i < hits.length; i++) {
+    weights[i] = hits[i]! / (n * n);
+    total += weights[i]!;
   }
   if (total === 0) {
     const cx = Math.min(Math.max((((bounds[0] + bounds[2]) / 2) - west) / grid.resX, col0), col1 - 1e-9);
