@@ -1,12 +1,12 @@
 # @urbanheat/geo-core
 
 Framework-free spatial logic shared by the API routes. ESM, TypeScript, tested
-with `node:test`. Raster layer (Session 5) is below; vector/zonal ops (Session 6),
-interpolation, features, and ONNX inference arrive in later sessions.
+with `node:test`. Raster layer (Session 5) and vector/zonal layer (Session 6) are
+below; interpolation, features, and ONNX inference arrive in later sessions.
 
 ```bash
 npm run typecheck -w @urbanheat/geo-core
-npm test -w @urbanheat/geo-core     # 30 tests; 2 integration tests skip if data/ isn't generated
+npm test -w @urbanheat/geo-core     # 56 tests; 3 integration tests skip if data/ isn't generated
 ```
 
 ## Raster API
@@ -40,3 +40,50 @@ tile?.stats();                                          // { count, nodata, min,
   overviews are not used, so downsampling reads native resolution first.
 - Fixtures in `test-fixtures/` are tiny GDAL-written GeoTIFFs (regenerate with `make_fixtures.py`).
   geotiff.js's own writer only emits 8-bit data, so it can't build float32 test files.
+
+## Vector & zonal API
+
+| Export | Purpose |
+|---|---|
+| `zonalStats(grid, polygon)` | Coverage-weighted `mean/min/max/std`, effective cell `weight`, `nodataShare`, polygon `areaM2`. Null if the polygon misses the grid. |
+| `zonalShare(grid, polygon, pred)` | Weighted share of valid cells satisfying `pred` (e.g. `v => v > 50`). |
+| `zonalStatsLayers(layers, polygon)` / `zonalStatsMany` | The same for several aligned rasters at once, building the coverage mask once; `assertSameGrid` enforces cell-for-cell alignment. |
+| `bufferStats(layers, lon, lat, radiusM)` | Stats of every layer within a metre radius of a point (turf buffer circle). |
+| `coverageMask` / `statsFromMask` | The building blocks: per-cell coverage fractions (0..1) and stats under a mask. |
+| `summarizeLandCover(polygon, features)` | Area-weighted canopy/impervious % and class shares from land cover polygons, via `turf.intersect` and geodesic area. Counts (`skipped`) geometries turf can't process instead of failing. |
+| `circlePolygon`, `pointInPolygons`, `boundsOf`, `haversineM`, `cellAreaM2`, `metersPerDegree` | Geometry helpers. |
+
+```ts
+const layers = { lst, canopy, impervious };          // three RasterGrids on the same grid
+const r = bufferStats(layers, -122.45, 47.625, 800);
+r?.stats.lst.mean;  r?.stats.canopy.mean;           // heat vs. green cover within 800 m
+
+const lc = summarizeLandCover(r!.buffer, rowsFromPostgis);   // rows: {geometry, properties}
+lc?.classShares;                                    // { developed_high: 0.62, forest: 0.21, ... }
+```
+
+### How polygon coverage works
+
+Each cell's coverage is estimated by sampling an n×n grid of points inside it (`supersample`,
+default 4; 1 = cell-centre test, which matches rasterio's default masking). Coverage is computed
+with a scanline fill: edge crossings are found once per sub-row and spans are filled, with
+even-odd handling of holes and multipolygons. This replaced a per-point containment test that took
+10.4 s for the 92 demo land cover polygons; the scanline version takes ~17 ms and is checked
+against brute-force point-in-polygon in the tests. Polygons smaller than the sampling resolution
+fall back to the single cell at their centre, so tiny buffers still return a value.
+
+### Cross-checks run against real data (not part of the test suite)
+
+- Zonal means of the demo canopy/impervious rasters over all 92 land cover polygons match the
+  `canopy_pct` / `impervious_pct` values Python stored in PostGIS to within 0.005 (their 2-dp rounding).
+- `summarizeLandCover` over four circles (0.8–5 km) matches a PostGIS `ST_Intersection` area-weighted
+  query to 3 decimals on both percentages. Total covered area differs by a constant 0.28 % because
+  turf measures on a sphere and PostGIS on the WGS84 spheroid.
+
+### Limits
+
+- Polygons are treated as planar in lon/lat when sampling cells (fine at city scale); areas
+  (`areaM2`, land cover weights) are geodesic.
+- Polygons crossing the antimeridian are not supported.
+- `summarizeLandCover` does a bbox pre-filter then pairwise intersections: fine for hundreds of
+  polygons, but filter with PostGIS (`ST_Intersects`) first for large tables.
