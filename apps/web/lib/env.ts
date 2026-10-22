@@ -1,18 +1,17 @@
 import path from "node:path";
 import { z } from "zod";
 
-const REPO_ROOT = path.resolve(process.cwd(), process.cwd().endsWith(path.join("apps", "web")) ? "../.." : ".");
-
 const schema = z.object({
   APP_DATABASE_URL: z
     .string({ error: "APP_DATABASE_URL is required (read-only connection; see .env.example)" })
     .regex(/^postgres(ql)?:\/\//, "APP_DATABASE_URL must be a postgres:// URL"),
-  RASTER_DIR: z.string().default("./data/rasters"),
+  // next.config.ts resolves a relative .env value (default ./data/rasters) against the repo root.
+  RASTER_DIR: z.string({ error: "RASTER_DIR is required" }).refine((p) => path.isAbsolute(p), "RASTER_DIR must be an absolute path"),
 });
 
 export interface Env {
   databaseUrl: string;
-  /** Absolute path; relative values in .env resolve against the repo root. */
+  /** Absolute path to the GeoTIFF directory. */
   rasterDir: string;
 }
 
@@ -27,7 +26,7 @@ export function getEnv(source: Record<string, string | undefined> = process.env)
   }
   const env: Env = {
     databaseUrl: parsed.data.APP_DATABASE_URL,
-    rasterDir: path.resolve(REPO_ROOT, parsed.data.RASTER_DIR),
+    rasterDir: parsed.data.RASTER_DIR,
   };
   if (source === process.env) cached = env;
   return env;
