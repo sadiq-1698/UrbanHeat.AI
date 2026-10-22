@@ -3,8 +3,8 @@
   "private": true,
   "description": "Climate Risk & Surface Temperature Predictor",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

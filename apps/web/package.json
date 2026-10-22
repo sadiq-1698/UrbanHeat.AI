@@ -1,0 +1,32 @@
+{
+  "name": "@urbanheat/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "npm run build -w @urbanheat/geo-core",
+    "predev": "npm run build -w @urbanheat/geo-core",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"lib/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@urbanheat/geo-core": "*",
+    "dotenv": "^18.0.4",
+    "next": "16.4.2",
+    "pg": "^8.13.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/geojson": "^7946.0.16",
+    "@types/node": "^20",
+    "@types/pg": "^8.11.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tsx": "^4.19.0",
+    "typescript": "^5"
+  }
+}
