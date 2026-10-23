@@ -25,6 +25,8 @@ export interface LandCoverLayerOptions {
 }
 
 export interface LandCoverLayerHandle {
+  /** Re-fetch the current view even if it was already loaded (e.g. "Retry" after an error). */
+  refresh(): void;
   setOpacity(opacity: number): void;
   setVisible(visible: boolean): void;
   destroy(): void;
@@ -163,6 +165,10 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
   void load();
 
   return {
+    refresh() {
+      loaded = undefined;
+      void load();
+    },
     setOpacity(next) {
       opacity = next;
       applyOpacity();

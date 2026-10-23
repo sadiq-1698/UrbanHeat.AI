@@ -7,20 +7,25 @@ export interface Region {
   id: string;
   bbox: BBox;
   layerCount: number;
+  /** True if any of the region's raster layers is described as synthetic (generated demo data). */
+  synthetic: boolean;
 }
 
 interface LayerRow {
   region: string;
   bbox: BBox;
+  description?: string | null;
 }
 
 /** Group raster catalog rows into regions; each region's bbox is the union of its layers'. */
 export function regionsFromLayers(rows: readonly LayerRow[]): Region[] {
   const byRegion = new Map<string, Region>();
-  for (const { region, bbox } of rows) {
+  for (const { region, bbox, description } of rows) {
+    const synthetic = /synthetic/i.test(description ?? "");
     const cur = byRegion.get(region);
-    if (!cur) byRegion.set(region, { id: region, bbox: [...bbox], layerCount: 1 });
+    if (!cur) byRegion.set(region, { id: region, bbox: [...bbox], layerCount: 1, synthetic });
     else {
+      cur.synthetic ||= synthetic;
       cur.bbox = [Math.min(cur.bbox[0], bbox[0]), Math.min(cur.bbox[1], bbox[1]), Math.max(cur.bbox[2], bbox[2]), Math.max(cur.bbox[3], bbox[3])];
       cur.layerCount++;
     }
