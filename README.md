@@ -5,6 +5,8 @@ coverage. Raster analysis (geotiff.js), vector ops (turf.js), PostGIS land cover
 weather stations, and an XGBoost/Random Forest model served in Node via ONNX Runtime,
 visualized as heatmaps and interpolated surfaces in MapLibre GL JS.
 
+![UrbanHeat.AI map, Session 8](docs/screenshots/session-8-land-cover.png)
+
 ## Architecture
 
 - **`apps/web`** — Next.js (App Router) UI + MapLibre map; route handlers are the Node backend.
@@ -23,6 +25,7 @@ docker compose up -d
 (cd db/ingest && .venv/bin/python -m demo_city.generate && .venv/bin/python -m demo_city.load)
 docker compose exec postgis pg_isready -U urbanheat_admin -d urbanheat
 npm run typecheck && npm test
+npm run dev -w @urbanheat/web   # http://localhost:3000
 ```
 
 Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
@@ -36,7 +39,8 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 - [x] Session 5 — Raster core: `GeoTiffRaster` (geotiff.js windowed reads, resampling, point sampling), `RasterStore`, in `packages/geo-core` (see its [README](packages/geo-core/README.md))
 - [x] Session 6 — Vector & zonal: coverage-weighted zonal stats, multi-layer buffer stats, area-weighted land cover summaries (turf), scanline polygon coverage (see [packages/geo-core/README.md](packages/geo-core/README.md))
 - [x] Session 7 — Data API: `apps/web` scaffolded (Next 16); `/api/landcover`, `/api/stations`, `/api/raster/layers`, `/api/raster/stats` over a read-only DB role (see [apps/web/README.md](apps/web/README.md))
-- [ ] 8–12 Map UI, raster overlay, interpolation, heatmap
+- [x] Session 8 — Map shell: MapLibre map + sidebar, region discovery, land cover layer with viewport loading, hover/popup, legend (see [apps/web/README.md](apps/web/README.md))
+- [ ] 9–12 Stations & toggles, raster overlay, interpolation, heatmap
 - [ ] 13–16 Features, training, ONNX inference, predict API
 - [ ] 17–18 Scenario simulator, risk & hotspots
 - [ ] 19–20 Hardening, verification, write-up

@@ -1,13 +1,12 @@
 # apps/web
 
-Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) and, from
-Session 8, the MapLibre UI. Spatial logic lives in `packages/geo-core`, which `predev` /
+Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) and the MapLibre UI. Spatial logic lives in `packages/geo-core`, which `predev` /
 `prebuild` compile before Next starts.
 
 ```bash
 npm run dev -w @urbanheat/web          # http://localhost:3000
 npm run typecheck -w @urbanheat/web
-npm test -w @urbanheat/web             # 35 tests; DB-backed ones report "skipped" if the demo city isn't loaded
+npm test -w @urbanheat/web             # 48 tests; DB-backed ones report "skipped" if the demo city isn't loaded
 ```
 
 > Next 16 differs from older versions; `AGENTS.md` points at the bundled docs in
@@ -70,6 +69,41 @@ Coverage-weighted statistics of each raster layer (`canopy`, `impervious`, `lst`
 `radius_m` ≤ 20 000. Statistics are `null` (never `NaN`) when every cell in the area is no-data.
 Errors: `404` unknown region/layer or area outside the rasters, `422` area too large to read,
 `503` catalog row whose GeoTIFF is missing on disk (the path is logged, not returned).
+
+## Map UI (Session 8)
+
+![Land cover map](../../docs/screenshots/session-8-land-cover.png)
+
+`app/page.tsx` discovers regions from `/api/raster/layers`, fits the map to the first region's bbox, and
+draws land cover polygons from `/api/landcover` styled with the NLCD legend. The sidebar has the region
+(with a "Synthetic data" badge for generated regions), a land cover toggle and opacity slider, a live
+status line with **Retry**, and the legend. Clicking a polygon shows class, canopy %, impervious % and area.
+Below 720 px wide the sidebar moves under the map.
+
+```
+components/MapView.tsx      map lifecycle: controls, resize, basemap fallback; hands the live map to onReady
+components/Sidebar.tsx      controls + legend
+lib/map/landcover-layer.ts  attachLandCover(map, opts): source + fill/line layers, loading, hover, popup, destroy()
+lib/map/landcover.ts        pure helpers: class colors, zoom -> simplify tolerance, request URL, popup text
+lib/map/geo.ts              bbox helpers (viewport clamping, padding, containment)
+lib/useRegions.ts           region list from the raster catalog
+```
+
+Design notes (each was checked in a real Chrome via Playwright, not just typechecked):
+
+- **Fetching is viewport-driven but cheap.** `moveend` is debounced (250 ms); the request covers the view
+  padded by 25 %, so small pans don't refetch (a 10 px drag made 0 requests). A new request happens only when
+  the view leaves the loaded box or the integer zoom changes; the in-flight request is aborted when superseded.
+- **Geometry is simplified for the zoom** (about half a screen pixel via the API's `simplify`), and exact below ~2 m.
+- **Truncated responses aren't cached as "loaded"** — the status says "zoom in to see all", and the next move retries.
+- **Layers sit under the basemap's labels** (inserted before the first `symbol` layer).
+- **Basemap offline?** A style failure before first load swaps to a blank background so data layers still work.
+- **MapLibre v6 has only named exports**, and Turbopack doesn't rewrite its worker URL, so
+  `scripts/copy-maplibre-worker.mjs` copies the worker into `public/maplibre-gl/` (gitignored, regenerated on
+  install/dev/build) and `MapView` points `setWorkerUrl` at it. Without it every map logs "Worker failed to load".
+- Popups are built with DOM `textContent`, never `innerHTML`.
+- The synthetic demo city's coordinates sit over real Puget Sound geography, so its river and lake don't match
+  the basemap's water. That is expected; it is why the sidebar flags the data as synthetic.
 
 ## Layout
 
