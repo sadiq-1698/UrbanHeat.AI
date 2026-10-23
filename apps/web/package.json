@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "npm run build -w @urbanheat/geo-core",
-    "predev": "npm run build -w @urbanheat/geo-core",
+    "postinstall": "node scripts/copy-maplibre-worker.mjs",
+    "predev": "node scripts/copy-maplibre-worker.mjs && npm run build -w @urbanheat/geo-core",
+    "prebuild": "node scripts/copy-maplibre-worker.mjs && npm run build -w @urbanheat/geo-core",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -14,6 +15,7 @@
   "dependencies": {
     "@urbanheat/geo-core": "*",
     "dotenv": "^18.0.4",
+    "maplibre-gl": "^6.15.0",
     "next": "16.4.2",
     "pg": "^8.13.0",
     "react": "19.2.8",
