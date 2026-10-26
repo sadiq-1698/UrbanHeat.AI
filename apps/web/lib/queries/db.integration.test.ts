@@ -5,6 +5,7 @@ import { config } from "dotenv";
 import { Pool } from "pg";
 import { fetchLandCover, landCoverQuery } from "./landcover";
 import { fetchStations, stationsQuery } from "./stations";
+import { fetchStationsRange } from "./stations-range";
 
 // Runs against the demo city loaded by db/ingest; skips when the DB (or data) isn't there.
 config({ path: path.resolve(__dirname, "../../../../.env"), quiet: true });
@@ -107,4 +108,15 @@ test("stations: bbox filter", async (t) => {
   assert.ok(west.features.length > 0 && east.features.length > 0);
   assert.ok(west.features.length + east.features.length >= 24);
   assert.ok(west.features.every((f) => f.geometry.coordinates[0]! <= -122.45));
+});
+
+test("stations range: counts, bounds, and UTC days of the demo city", async (t) => {
+  if (!ready(t)) return;
+  const r = await fetchStationsRange(pool!, { region: "demo-city" });
+  assert.deepEqual([r.stations, r.observations], [24, 576]);
+  assert.equal(r.first, "2025-07-15T00:00:00.000Z");
+  assert.equal(r.last, "2025-07-15T23:00:00.000Z");
+  assert.deepEqual(r.days, ["2025-07-15"]);
+  const none = await fetchStationsRange(pool!, { region: "no-such-region" });
+  assert.deepEqual(none, { region: "no-such-region", stations: 0, observations: 0, first: null, last: null, days: [] });
 });
