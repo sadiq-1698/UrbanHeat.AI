@@ -1,7 +1,8 @@
-import { GeoJSONSource, type MapLayerMouseEvent, type MapLibreMap, Popup } from "maplibre-gl";
+import { GeoJSONSource, type MapLayerMouseEvent, type MapLibreMap } from "maplibre-gl";
 import type { FeatureCollection } from "geojson";
 import { type BBox, bboxContains, padBBox, viewportToBBox } from "./geo";
 import { colorExpression, landCoverUrl, popupRows, zoomBucket } from "./landcover";
+import { closePopup, openPopup } from "./popup";
 
 const SOURCE = "land-cover";
 const FILL = "land-cover-fill";
@@ -49,7 +50,6 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
   let controller: AbortController | undefined;
   let loaded: { bbox: BBox; bucket: number } | undefined;
   let hoveredId: number | string | undefined;
-  let popup: Popup | undefined;
   let destroyed = false;
 
   const empty: FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -143,19 +143,9 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
   const onClick = (e: MapLayerMouseEvent) => {
     const f = e.features?.[0];
     if (!f) return;
-    const { title, rows } = popupRows(f.properties ?? {});
-    // Built from DOM nodes with textContent: feature properties never pass through innerHTML.
-    const root = document.createElement("div");
-    const h = document.createElement("strong");
-    h.textContent = title;
-    root.append(h);
-    for (const r of rows) {
-      const line = document.createElement("div");
-      line.textContent = `${r.label}: ${r.value}`;
-      root.append(line);
-    }
-    popup?.remove();
-    popup = new Popup({ maxWidth: "240px" }).setLngLat(e.lngLat).setDOMContent(root).addTo(map);
+    // A station drawn on top of this polygon owns the click.
+    if (map.getLayer("stations-circle") && map.queryRenderedFeatures(e.point, { layers: ["stations-circle"] }).length > 0) return;
+    openPopup(map, e.lngLat, popupRows(f.properties ?? {}));
   };
 
   map.on("moveend", schedule);
@@ -182,7 +172,7 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
       destroyed = true;
       clearTimeout(timer);
       controller?.abort();
-      popup?.remove();
+      closePopup(map);
       map.off("moveend", schedule);
       map.off("mousemove", FILL, onMove);
       map.off("mouseleave", FILL, onLeave);

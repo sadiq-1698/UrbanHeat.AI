@@ -6,6 +6,8 @@ import type { MapLibreMap } from "maplibre-gl";
 import { MapView } from "@/components/MapView";
 import { Sidebar } from "@/components/Sidebar";
 import { attachLandCover, type LandCoverLayerHandle, type LandCoverStatus } from "@/lib/map/landcover-layer";
+import { attachStations } from "@/lib/map/stations-layer";
+import { LATEST } from "@/lib/map/stations";
 import { useRegions } from "@/lib/useRegions";
 import styles from "./page.module.css";
 
@@ -41,6 +43,12 @@ export default function Home() {
       layer.destroy();
       layerRef.current = null;
     };
+  }, [map, regionKey]);
+
+  useEffect(() => {
+    if (!map || !regionKey) return;
+    const layer = attachStations(map, { region: regionKey, mode: LATEST, visible: true, opacity: 1, onStatus: () => {} });
+    return () => layer.destroy();
   }, [map, regionKey]);
 
   useEffect(() => layerRef.current?.setVisible(visible), [visible]);
