@@ -1,0 +1,58 @@
+.list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  gap: 6px;
+}
+
+.head label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.status {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.error {
+  color: #c92a2a;
+}
+
+@media (prefers-color-scheme: dark) {
+  .error {
+    color: #ff8787;
+  }
+}
+
+.retry {
+  margin-left: 6px;
+  padding: 1px 8px;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.extra {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}

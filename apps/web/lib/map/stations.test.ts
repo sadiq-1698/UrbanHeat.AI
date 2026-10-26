@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stationsQuery } from "../queries/stations";
-import { LATEST, defaultMode, describeMode, hourToIso, stationPopup, stationsUrl } from "./stations";
+import { LATEST, defaultMode, describeMode, hourToIso, latestDay, stationPopup, stationsUrl, withAgg, withDate, withHour } from "./stations";
 
 test("stationsUrl builds requests the API accepts, for every mode", () => {
   const modes = [LATEST, { kind: "hour", date: "2025-07-15", hour: 7 }, { kind: "day", date: "2025-07-15", agg: "mean" }] as const;
@@ -47,4 +47,24 @@ test("stationPopup: a reading, a daily aggregate, and a station with no reading"
   assert.match(none.subtitle, /No reading/);
   assert.equal(none.rows[0]!.value, "—");
   assert.equal(stationPopup({}, LATEST).title, "Station");
+});
+
+
+test("mode editors only touch the fields their kind has", () => {
+  const hour = { kind: "hour", date: "2025-07-15", hour: 22 } as const;
+  const day = { kind: "day", date: "2025-07-15", agg: "max" } as const;
+  assert.deepEqual(withDate(hour, "2025-07-16"), { kind: "hour", date: "2025-07-16", hour: 22 });
+  assert.deepEqual(withDate(day, "2025-07-16"), { kind: "day", date: "2025-07-16", agg: "max" });
+  assert.deepEqual(withDate(LATEST, "2025-07-16"), LATEST);
+  assert.deepEqual(withHour(hour, 3.6), { kind: "hour", date: "2025-07-15", hour: 4 });
+  assert.deepEqual(withHour(hour, 99), { kind: "hour", date: "2025-07-15", hour: 23 });
+  assert.deepEqual(withHour(hour, -5), { kind: "hour", date: "2025-07-15", hour: 0 });
+  assert.deepEqual(withHour(day, 5), day);
+  assert.deepEqual(withAgg(day, "min"), { kind: "day", date: "2025-07-15", agg: "min" });
+  assert.deepEqual(withAgg(hour, "min"), hour);
+});
+
+test("latestDay picks the last day or nothing", () => {
+  assert.equal(latestDay(["2025-07-14", "2025-07-15"]), "2025-07-15");
+  assert.equal(latestDay([]), undefined);
 });

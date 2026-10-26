@@ -64,3 +64,19 @@ export function stationPopup(p: Record<string, unknown>, mode: ReadingMode): { t
     ],
   };
 }
+
+/** Same mode on another day (latest has no day, so it is unchanged). */
+export function withDate(mode: ReadingMode, date: string): ReadingMode {
+  return mode.kind === "latest" ? mode : { ...mode, date };
+}
+
+export function withHour(mode: ReadingMode, hour: number): ReadingMode {
+  return mode.kind === "hour" ? { ...mode, hour: Math.min(Math.max(Math.round(hour), 0), 23) } : mode;
+}
+
+export function withAgg(mode: ReadingMode, agg: Agg): ReadingMode {
+  return mode.kind === "day" ? { ...mode, agg } : mode;
+}
+
+/** The day to preselect for a region: its most recent day with readings. */
+export const latestDay = (days: readonly string[]): string | undefined => days.at(-1);
