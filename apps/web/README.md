@@ -6,7 +6,7 @@ Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) a
 ```bash
 npm run dev -w @urbanheat/web          # http://localhost:3000
 npm run typecheck -w @urbanheat/web
-npm test -w @urbanheat/web             # 48 tests; DB-backed ones report "skipped" if the demo city isn't loaded
+npm test -w @urbanheat/web             # 65 tests; DB-backed ones report "skipped" if the demo city isn't loaded
 ```
 
 > Next 16 differs from older versions; `AGENTS.md` points at the bundled docs in
@@ -49,6 +49,10 @@ Stations as GeoJSON points with a temperature reading. Pick the reading with **o
 Also `bbox`, `region`, `observed_only=true` (drop stations with no reading), `limit`.
 Properties: `station_id, name, region, elevation_m, source, temp_c, humidity_pct, wind_ms,
 observed_at (null for date aggregates), n_obs`. Stations without a reading have `temp_c: null`.
+
+### `GET /api/stations/range?region=`
+What readings exist: `{ region, stations, observations, first, last, days: ["2025-07-15", ...] }` (UTC days with
+data). The UI offers only days that have readings.
 
 ### `GET /api/raster/layers[?region=]`
 The raster catalog: `name, region, kind, unit, width_px, height_px, nodata, bbox, description`.
@@ -104,6 +108,45 @@ Design notes (each was checked in a real Chrome via Playwright, not just typeche
 - Popups are built with DOM `textContent`, never `innerHTML`.
 - The synthetic demo city's coordinates sit over real Puget Sound geography, so its river and lake don't match
   the basemap's water. That is expected; it is why the sidebar flags the data as synthetic.
+
+## Stations, reading modes, and layer controls (Session 9)
+
+![Stations over land cover, 14:00 UTC](../../docs/screenshots/session-9-stations.png)
+
+Weather stations are circles colored by temperature, labelled with the value from zoom 11, with a hover ring and
+a click popup (name, time or day summary, temperature, humidity, wind, elevation, source). Stations with no
+reading for the chosen time show as gray "No reading" circles instead of disappearing.
+
+**Reading selector** (under the stations layer): *Latest reading*, *Specific hour* (day + UTC hour slider), or
+*Daily summary* (max / mean / min over a UTC day). Days come from `/api/stations/range`. Changing it refetches
+`/api/stations` with `at=` or `date=&agg=`, closes any open popup (its text described the old reading), and the
+state survives hiding and re-showing the layer.
+
+**Color scale** is a reversed ColorBrewer RdYlBu ramp (blue → pale yellow → red; blue-vs-red rather than
+red-vs-green, so it stays readable under common color-vision deficiencies). Its domain is computed from the readings
+shown (rounded to whole degrees, at least 4 °C wide), so a cool morning and a hot afternoon both use the full ramp.
+The legend states that the scale adapts, so two hours are compared by number, not by color alone.
+
+**Layer toggle list** (`LayerToggleList`): one row per layer with a checkbox, an opacity slider, a live status line
+(with Retry on failure), and optional extra controls; legends appear only for visible layers. Adding a layer in a
+later session means adding an item, not editing the sidebar.
+
+Other notes:
+
+- Stations load the whole region once per reading mode (tens to a few thousand points), unlike land cover, which is
+  viewport-chunked. If a real region exceeds the 5000-station cap the response is flagged `truncated`.
+- Popups share one manager (`lib/map/popup.ts`): clicking a station on top of a polygon opens only the station's popup
+  (land cover defers when a station is under the cursor), and a new click replaces the old popup rather than stacking.
+- Value labels need basemap glyphs; the offline fallback style has none, so labels are skipped there.
+- Controls carry explicit `aria-label`s (a `<label>` wrapping a `<select>` otherwise includes every option's text in
+  its accessible name).
+
+```
+components/LayerToggleList.tsx   generic layer rows            components/ReadingControls.tsx  latest / hour / daily
+components/Legend.tsx            temperature + land cover      lib/map/stations-layer.ts       attachStations(map, opts)
+lib/map/temperature.ts           ramp, niceDomain, expressions lib/map/stations.ts             modes, URLs, popup text
+lib/useStationsRange.ts          /api/stations/range hook      lib/map/popup.ts                one shared popup per map
+```
 
 ## Layout
 
