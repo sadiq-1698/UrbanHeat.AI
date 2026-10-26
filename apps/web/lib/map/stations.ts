@@ -1,0 +1,66 @@
+export type Agg = "max" | "mean" | "min";
+
+/** Which reading each station shows. Times are UTC (the API's convention). */
+export type ReadingMode =
+  | { kind: "latest" }
+  | { kind: "hour"; date: string; hour: number }
+  | { kind: "day"; date: string; agg: Agg };
+
+export const LATEST: ReadingMode = { kind: "latest" };
+
+export const pad2 = (n: number) => String(n).padStart(2, "0");
+
+export const hourToIso = (date: string, hour: number): string => `${date}T${pad2(hour)}:00:00Z`;
+
+export function stationsUrl(region: string, mode: ReadingMode): string {
+  const p = new URLSearchParams({ region, limit: "5000" });
+  if (mode.kind === "hour") p.set("at", hourToIso(mode.date, mode.hour));
+  else if (mode.kind === "day") {
+    p.set("date", mode.date);
+    p.set("agg", mode.agg);
+  }
+  return `/api/stations?${p}`;
+}
+
+const AGG_LABEL: Record<Agg, string> = { max: "Daily max", mean: "Daily mean", min: "Daily min" };
+
+export function describeMode(mode: ReadingMode): string {
+  if (mode.kind === "latest") return "Latest reading";
+  if (mode.kind === "hour") return `${mode.date} ${pad2(mode.hour)}:00 UTC`;
+  return `${AGG_LABEL[mode.agg]}, ${mode.date} (UTC)`;
+}
+
+/** Mode used when the user switches kind: keep the day, pick a sensible hour (mid-afternoon local-ish: 22 UTC). */
+export function defaultMode(kind: ReadingMode["kind"], day: string | undefined, agg: Agg = "max"): ReadingMode {
+  if (kind === "latest" || !day) return LATEST;
+  return kind === "hour" ? { kind: "hour", date: day, hour: 22 } : { kind: "day", date: day, agg };
+}
+
+export interface PopupRow {
+  label: string;
+  value: string;
+}
+
+const num = (v: unknown, digits: number, unit: string) => (typeof v === "number" && Number.isFinite(v) ? `${v.toFixed(digits)}${unit}` : "—");
+
+export function stationPopup(p: Record<string, unknown>, mode: ReadingMode): { title: string; subtitle: string; rows: PopupRow[] } {
+  const hasReading = typeof p.temp_c === "number";
+  const nObs = typeof p.n_obs === "number" ? p.n_obs : 0;
+  const when =
+    mode.kind === "day"
+      ? `${describeMode(mode)} · ${nObs} reading${nObs === 1 ? "" : "s"}`
+      : typeof p.observed_at === "string"
+        ? `${p.observed_at.slice(0, 16).replace("T", " ")} UTC`
+        : describeMode(mode);
+  return {
+    title: String(p.name ?? p.station_id ?? "Station"),
+    subtitle: hasReading ? when : `No reading for: ${describeMode(mode)}`,
+    rows: [
+      { label: "Temperature", value: num(p.temp_c, 1, " °C") },
+      { label: "Humidity", value: num(p.humidity_pct, 0, "%") },
+      { label: "Wind", value: num(p.wind_ms, 1, " m/s") },
+      { label: "Elevation", value: num(p.elevation_m, 0, " m") },
+      { label: "Source", value: String(p.source ?? "—") },
+    ],
+  };
+}
