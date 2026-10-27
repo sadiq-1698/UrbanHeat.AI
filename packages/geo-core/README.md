@@ -1,12 +1,12 @@
 # @urbanheat/geo-core
 
 Framework-free spatial logic shared by the API routes. ESM, TypeScript, tested
-with `node:test`. Raster layer (Session 5) and vector/zonal layer (Session 6) are
+with `node:test`. Raster (Session 5), vector/zonal (Session 6) and tile rendering (Session 10) are
 below; interpolation, features, and ONNX inference arrive in later sessions.
 
 ```bash
 npm run typecheck -w @urbanheat/geo-core
-npm test -w @urbanheat/geo-core     # 56 tests; 3 integration tests skip if data/ isn't generated
+npm test -w @urbanheat/geo-core     # 75 tests; 3 integration tests skip if data/ isn't generated
 ```
 
 ## Raster API
@@ -87,3 +87,25 @@ fall back to the single cell at their centre, so tiny buffers still return a val
 - Polygons crossing the antimeridian are not supported.
 - `summarizeLandCover` does a bbox pre-filter then pairwise intersections: fine for hundreds of
   polygons, but filter with PostGIS (`ST_Intersects`) first for large tables.
+
+## Tile rendering (Session 10)
+
+| Export | Purpose |
+|---|---|
+| `tileBBox`, `lonLatToTile`, `pixelLon`, `pixelLat`, `isValidTile` | Web Mercator XYZ tile math. Pixel rows are evenly spaced in Mercator y (not latitude), so latitude is computed per row. |
+| `renderTilePng(raster, z, x, y, colormap)` | Reads only the tile's window from a `GeoTiffRaster`, samples each pixel centre (bilinear by default; `nearest` for categorical data), colors it, and returns a PNG `Buffer`, or `null` if the tile misses the raster. |
+| `renderTileRgba(grid, z, x, y, colormap)` | The same from an in-memory `RasterGrid`, returning raw RGBA. |
+| `encodePng`, `emptyTilePng` | Dependency-free 8-bit RGBA PNG encoder (`node:zlib`, `zlib.crc32`; needs Node >= 20.15). Validated against GDAL's PNG decoder. |
+| `colormapFromHex`, `colorAtValue`, `colormapForKind`, `RAMPS`, `FIXED_DOMAINS` | Piecewise-linear ramps with **per-stop alpha**: canopy and impervious fade to transparent at 0 so bare ground shows the basemap. |
+| `percentile`, `robustDomain` | Color domain from the 2nd..98th percentile (rounded outward) so a few outlier cells don't flatten a ramp. |
+
+Notes:
+
+- **Zoomed-out tiles are averaged first.** When many raster cells fall inside one output pixel, point sampling
+  speckles; the renderer area-averages the window down to about one cell per pixel before sampling (Mercator
+  pixels are square on the ground, so their height in degrees is `pixelDeg * cos(lat)`). A test proves this by
+  failing with a 234-wide speckle spread when the averaging is disabled.
+- **No overviews.** Low-zoom tiles of a very large raster would decode a huge window; `maxPixels` (16 M cells by
+  default) turns that into a `RangeError` instead. Rasters beyond that need `gdaladdo` overviews (not implemented).
+- Tile pixels were checked against an independent Python implementation (tile math, bilinear sampling, legend
+  colors): 400 random pixels, max channel difference 0.

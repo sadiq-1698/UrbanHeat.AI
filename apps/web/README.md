@@ -6,7 +6,7 @@ Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) a
 ```bash
 npm run dev -w @urbanheat/web          # http://localhost:3000
 npm run typecheck -w @urbanheat/web
-npm test -w @urbanheat/web             # 65 tests; DB-backed ones report "skipped" if the demo city isn't loaded
+npm test -w @urbanheat/web             # 80 tests; DB-backed ones report "skipped" if the demo city isn't loaded
 ```
 
 > Next 16 differs from older versions; `AGENTS.md` points at the bundled docs in
@@ -56,6 +56,21 @@ data). The UI offers only days that have readings.
 
 ### `GET /api/raster/layers[?region=]`
 The raster catalog: `name, region, kind, unit, width_px, height_px, nodata, bbox, description`.
+
+### `GET /api/raster/tile/{region}/{kind}/{z}/{x}/{y}.png`
+A 256x256 PNG tile (Web Mercator, XYZ) of a raster layer, rendered on the fly from its GeoTIFF with the layer's
+color ramp. `kind` is `lst`, `canopy`, `impervious` or `elevation`. Tiles outside the raster are a shared,
+fully transparent 334-byte PNG. Responses carry `Cache-Control: public, max-age=300, stale-while-revalidate=3600`
+and a weak `ETag` (file mtime + size + tile), so matching `If-None-Match` gets a bodyless `304`.
+`400` bad tile coordinates, `404` unknown region/kind, `422` tile too large to render on the fly, `503` GeoTIFF missing.
+
+Server-side details (`lib/raster-tiles.ts`): an in-memory LRU of 400 rendered tiles; a color domain per layer computed
+once from a 512 px overview (percent layers use a fixed 0–100); catalog rows cached 30 s; every cache key includes the
+file's mtime, so re-ingesting a region (new GeoTIFF) invalidates its tiles, domains and ETags automatically.
+
+### `GET /api/raster/legend?region=&kind=`
+The ramp the tile endpoint uses: `{ kind, unit, domain: [lo, hi], stops: [{ value, color, alpha }] }`, so the UI legend
+is always the same ramp as the pixels.
 
 ### `GET|POST /api/raster/stats`
 Coverage-weighted statistics of each raster layer (`canopy`, `impervious`, `lst`, `elevation`) inside an area:
@@ -147,6 +162,25 @@ components/Legend.tsx            temperature + land cover      lib/map/stations-
 lib/map/temperature.ts           ramp, niceDomain, expressions lib/map/stations.ts             modes, URLs, popup text
 lib/useStationsRange.ts          /api/stations/range hook      lib/map/popup.ts                one shared popup per map
 ```
+
+## Raster overlay (Session 10)
+
+![Surface temperature overlay with stations](../../docs/screenshots/session-10-raster.png)
+
+A **Raster overlay** row in the layer list (off by default) with a layer picker: *Surface temperature*, *Tree canopy*,
+*Impervious surface*, *Elevation*. It is a MapLibre `raster` source pointing at `/api/raster/tile/...`, restricted to
+the region's bounds, drawn beneath land cover, stations and the basemap's labels. The legend comes from
+`/api/raster/legend`, with a checkerboard behind it where a ramp is transparent.
+
+- **Lazy:** while the layer is hidden MapLibre requests no tiles (verified: 0 requests on load and while panning hidden).
+- **Switching layers** swaps the source's tile URL in place (`setTiles`) rather than rebuilding the map layer.
+- **Failures:** a tile error shows "Some tiles failed to load" with **Retry**.
+- **Two temperature scales:** the station legend adapts to the readings shown (e.g. 27–32 °C), while the raster legend
+  spans the layer's 2nd–98th percentile (e.g. 21–36 °C). They are labelled separately; compare by number, not by color.
+- **Timing** (production build, demo city): first tile ~130 ms (includes the color-domain pass), further fresh tiles
+  ~20–35 ms, a cached tile ~4 ms, a `304` ~3 ms; 30 sequential z13 tiles averaged 18 ms.
+- Tiles are 40–85 KB at z12–13 because smooth gradients don't compress well as 32-bit PNG; paletted PNG would shrink
+  them but isn't implemented.
 
 ## Layout
 

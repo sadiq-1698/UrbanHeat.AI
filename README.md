@@ -5,7 +5,7 @@ coverage. Raster analysis (geotiff.js), vector ops (turf.js), PostGIS land cover
 weather stations, and an XGBoost/Random Forest model served in Node via ONNX Runtime,
 visualized as heatmaps and interpolated surfaces in MapLibre GL JS.
 
-![UrbanHeat.AI map, Session 9: stations over land cover](docs/screenshots/session-9-stations.png)
+![UrbanHeat.AI map, Session 10: surface-temperature overlay with stations](docs/screenshots/session-10-raster.png)
 
 ## Architecture
 
@@ -41,7 +41,8 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 - [x] Session 7 — Data API: `apps/web` scaffolded (Next 16); `/api/landcover`, `/api/stations`, `/api/raster/layers`, `/api/raster/stats` over a read-only DB role (see [apps/web/README.md](apps/web/README.md))
 - [x] Session 8 — Map shell: MapLibre map + sidebar, region discovery, land cover layer with viewport loading, hover/popup, legend (see [apps/web/README.md](apps/web/README.md))
 - [x] Session 9 — Stations & toggles: temperature-colored station circles with popups, reading selector (latest / hour / daily max-mean-min), layer toggle list with opacity, adaptive legend, `/api/stations/range`
-- [ ] 10–12 Raster overlay, interpolation, heatmap
+- [x] Session 10 — Raster overlay: on-the-fly PNG tiles (`/api/raster/tile`, `/api/raster/legend`) with LRU + ETag, Mercator tile renderer and PNG encoder in `geo-core`, overlay layer with picker and legend
+- [ ] 11–12 Interpolation, heatmap
 - [ ] 13–16 Features, training, ONNX inference, predict API
 - [ ] 17–18 Scenario simulator, risk & hotspots
 - [ ] 19–20 Hardening, verification, write-up
