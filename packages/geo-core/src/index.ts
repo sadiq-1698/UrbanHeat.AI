@@ -6,3 +6,5 @@ export * from "./geometry.js";
 export * from "./zonal.js";
 export * from "./layers.js";
 export * from "./landcover.js";
+export * from "./tile.js";
+export * from "./png.js";
