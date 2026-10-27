@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isValidTile, pixelLat, pixelLon, tileBBox, tileXToLon, tileYToLat } from "./tile.js";
+import { isValidTile, lonLatToTile, pixelLat, pixelLon, tileBBox, tileXToLon, tileYToLat } from "./tile.js";
 
 const near = (a: number, b: number, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} !~ ${b}`);
 
@@ -19,15 +19,19 @@ test("z1 quadrants split at the equator and prime meridian", () => {
   assert.deepEqual(tileBBox(1, 1, 1).slice(0, 3).map((v) => Math.round(v)), [0, -85, 180]);
 });
 
-test("known tile: Seattle area at z10", () => {
-  // lon -122.33, lat 47.61 -> tile x = floor((lon+180)/360*1024), y from the Mercator formula
-  const z = 10;
-  const x = Math.floor(((-122.33 + 180) / 360) * 2 ** z);
-  const latRad = (47.61 * Math.PI) / 180;
-  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * 2 ** z);
-  assert.deepEqual([x, y], [164, 357]);
-  const [w, s, e, n] = tileBBox(z, x, y);
+test("lonLatToTile: known tile for Seattle and consistency with tileBBox", () => {
+  assert.deepEqual(lonLatToTile(-122.33, 47.61, 10), { x: 164, y: 357 });
+  const { x, y } = lonLatToTile(-122.33, 47.61, 10);
+  const [w, s, e, n] = tileBBox(10, x, y);
   assert.ok(w <= -122.33 && -122.33 < e && s <= 47.61 && 47.61 < n);
+  for (const [lon, lat, z] of [[0, 0, 0], [179.99, 84, 5], [-179.99, -84, 5], [10.5, 52.2, 8], [-122.4, 47.6, 14]] as const) {
+    const t = lonLatToTile(lon, lat, z);
+    const [w2, s2, e2, n2] = tileBBox(z, t.x, t.y);
+    assert.ok(lon >= w2 && lon <= e2 && lat >= s2 && lat <= n2, `${lon},${lat}@${z}`);
+  }
+  // beyond the Mercator limit / world edge: clamped to a valid tile instead of NaN
+  assert.deepEqual(lonLatToTile(180, 90, 3), { x: 7, y: 0 });
+  assert.deepEqual(lonLatToTile(-180, -90, 3), { x: 0, y: 7 });
 });
 
 test("neighbouring tiles share edges and latitude rows are not evenly spaced", () => {

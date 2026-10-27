@@ -30,3 +30,13 @@ export const pixelLon = (z: number, x: number, col: number, size: number): numbe
 
 /** Latitude of the centre of pixel row `row` (0 = north). Rows are evenly spaced in Mercator y, not in latitude. */
 export const pixelLat = (z: number, y: number, row: number, size: number): number => tileYToLat(y + (row + 0.5) / size, z);
+
+/** The tile at zoom `z` containing a point (latitude clamped to the Web Mercator limit). */
+export function lonLatToTile(lon: number, lat: number, z: number): { x: number; y: number } {
+  const n = 2 ** z;
+  const clampedLat = Math.min(Math.max(lat, -85.0511287798), 85.0511287798);
+  const latRad = (clampedLat * Math.PI) / 180;
+  const x = Math.floor(((lon + 180) / 360) * n);
+  const y = Math.floor(((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n);
+  return { x: Math.min(Math.max(x, 0), n - 1), y: Math.min(Math.max(y, 0), n - 1) };
+}
