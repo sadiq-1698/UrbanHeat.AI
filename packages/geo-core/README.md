@@ -1,12 +1,12 @@
 # @urbanheat/geo-core
 
 Framework-free spatial logic shared by the API routes. ESM, TypeScript, tested
-with `node:test`. Raster (Session 5), vector/zonal (Session 6) and tile rendering (Session 10) are
-below; interpolation, features, and ONNX inference arrive in later sessions.
+with `node:test`. Raster (Session 5), vector/zonal (Session 6) and tile rendering (Session 10) and interpolation (Session 11) are
+below; features, and ONNX inference arrive in later sessions.
 
 ```bash
 npm run typecheck -w @urbanheat/geo-core
-npm test -w @urbanheat/geo-core     # 75 tests; 3 integration tests skip if data/ isn't generated
+npm test -w @urbanheat/geo-core     # 103 tests; 3 integration tests skip if data/ isn't generated
 ```
 
 ## Raster API
@@ -109,3 +109,29 @@ Notes:
   default) turns that into a `RangeError` instead. Rasters beyond that need `gdaladdo` overviews (not implemented).
 - Tile pixels were checked against an independent Python implementation (tile math, bilinear sampling, legend
   colors): 400 random pixels, max channel difference 0.
+
+## Interpolation (Session 11)
+
+Continuous surfaces from point readings. Two methods, plus an honest way to compare them.
+
+| Export | Purpose |
+|---|---|
+| `idwAt`, `idwGrid`, `idwDetail` | Inverse-distance weighting from the `neighbors` nearest points (default 12, power 2). A weighted average, so it never overshoots the data range; exact (the station's own value) within ~1 m of a station. `maxDistanceM` leaves far cells empty. |
+| `fitLinear`, `predictLinear` | Ridge-regularized least squares (standardized features, Cholesky solve). Constant features get 0; collinear or under-determined fits stay finite. |
+| `regressionIdwGrid`, `prepareRegression`, `regressionPredict(Detail)` | **Regression + residual IDW**: fit value ~ covariates at the stations, interpolate the station residuals with IDW, add them to the covariate trend. Still an exact interpolator at stations, but between them it follows the covariates (here: impervious, canopy, elevation rasters). |
+| `leaveOneOut`, `idwLeaveOneOut`, `regressionLeaveOneOut` | Leave-one-out cross-validation: predict each station from all the others (the regression is **re-fitted every fold**). RMSE / MAE / bias of held-out error, the honest accuracy estimate for an unobserved location. |
+
+How the regression variant behaves, and why:
+
+- **Residual influence fades with distance** (`exp(-(d/range)^2)`, range = 2x the mean nearest-station spacing), so far from any station
+  the surface relaxes to the covariate trend instead of freezing at the nearest station's residual. (A constant offset across all stations is
+  absorbed by the intercept, so residual effects only show where unexplained signal varies in space.)
+- **Covariates are clamped to the range the stations saw** (`clamp`, default on). Found the hard way: open water has canopy = 0, impervious = 0, elevation = 0,
+  a combination no land station experiences, and the linear model extrapolated to about its intercept: the river rendered *warm*. Clamping bounds that;
+  `clampedShare` reports how much of the surface is extrapolated. The cost: where the stations under-sample an extreme (the densest core) the peak is capped.
+  Leave-one-out cannot judge this choice (held-out stations lie inside the covariate range), so it is a conservative judgment call, not something the numbers prove.
+- Tests plant a known linear truth: the fit recovers coefficients, the surface matches the truth at cell centres, and regression beats IDW by >2x RMSE both at
+  held-out stations and across the whole grid. IDW was checked against an independent numpy implementation (3 parameter settings, max difference 0.005 = output rounding).
+
+Limits: IDW costs O(stations x neighbors) per cell (fine to a couple of thousand stations); distances are equirectangular at the target latitude
+(city scale); the regression is linear in the covariates (no interactions or nonlinearity; that is what the Session 14 model is for).

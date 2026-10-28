@@ -42,7 +42,8 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 - [x] Session 8 — Map shell: MapLibre map + sidebar, region discovery, land cover layer with viewport loading, hover/popup, legend (see [apps/web/README.md](apps/web/README.md))
 - [x] Session 9 — Stations & toggles: temperature-colored station circles with popups, reading selector (latest / hour / daily max-mean-min), layer toggle list with opacity, adaptive legend, `/api/stations/range`
 - [x] Session 10 — Raster overlay: on-the-fly PNG tiles (`/api/raster/tile`, `/api/raster/legend`) with LRU + ETag, Mercator tile renderer and PNG encoder in `geo-core`, overlay layer with picker and legend
-- [ ] 11–12 Interpolation, heatmap
+- [x] Session 11 — Interpolation: IDW and regression + residual-IDW surfaces from stations, leave-one-out cross-validation, `/api/interpolate` (json / geojson / png), covariate clamping, open-water masking
+- [ ] 12 Heatmap
 - [ ] 13–16 Features, training, ONNX inference, predict API
 - [ ] 17–18 Scenario simulator, risk & hotspots
 - [ ] 19–20 Hardening, verification, write-up

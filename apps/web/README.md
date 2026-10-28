@@ -6,7 +6,7 @@ Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) a
 ```bash
 npm run dev -w @urbanheat/web          # http://localhost:3000
 npm run typecheck -w @urbanheat/web
-npm test -w @urbanheat/web             # 80 tests; DB-backed ones report "skipped" if the demo city isn't loaded
+npm test -w @urbanheat/web             # 96 tests; DB-backed ones report "skipped" if the demo city isn't loaded
 ```
 
 > Next 16 differs from older versions; `AGENTS.md` points at the bundled docs in
@@ -53,6 +53,33 @@ observed_at (null for date aggregates), n_obs`. Stations without a reading have 
 ### `GET /api/stations/range?region=`
 What readings exist: `{ region, stations, observations, first, last, days: ["2025-07-15", ...] }` (UTC days with
 data). The UI offers only days that have readings.
+
+### `GET /api/interpolate`
+A continuous temperature surface from the stations' readings.
+
+`?region=` plus a reading (`at=`, or `date=&agg=`, or the latest) and `method=auto|idw|regression` (default `auto`: regression on
+impervious/canopy/elevation when the region has those rasters, else IDW, with `methodNote` saying why). Also `power` (0.5–6), `neighbors` (1–50),
+`max_distance_m`, `bbox` (default: the region's raster extent; at most 2° per side), `size` (long side in cells, 8–512), `mask_water` (default true),
+`clamp` (default true), and `format`:
+
+- `json` (default): `{ method, methodNote, stationsUsed, bbox, width, height, stats, cv, model, extrapolatedShare, waterMaskedCells }`, plus `values` (row-major, north first) with `values=true`.
+  `cv` is leave-one-out RMSE/MAE/bias for both methods, so the response states how good the surface is. `model` has the fitted coefficients and R².
+- `geojson`: cell-centre `Point` features with `temp_c` (size ≤ 100; empty cells omitted).
+- `png`: the surface as an image over `bbox` in the temperature ramp, with `X-Temp-Min`/`X-Temp-Max`/`X-Bbox` headers (`vmin`+`vmax` override the domain).
+  Rows are evenly spaced in latitude, so overlay it as an image source over a city-sized bbox, not as Mercator tiles.
+
+Open-water cells (the region's `land_cover` class `water`) are left empty: a surface built from land stations says nothing about air over water.
+Errors: `404` no readings / no extent, `422` method=regression without covariate rasters, bbox too large or off the rasters.
+
+**Demo-city results** (24 stations, leave-one-out RMSE in °C; regression vs IDW): 22:00 UTC **0.50 vs 0.97**; daily max **0.48 vs 1.02**;
+14:00 UTC **0.51 vs 0.70** (the land-cover signal is weaker in the cool morning). Fitted effects have the expected signs (impervious +, canopy −, elevation −).
+**Caveat: the demo station temperatures were generated from the same land-cover fields used as covariates, so part of regression's advantage is by construction.**
+Whether it holds on real stations is a Session 20 question.
+
+![IDW | regression | regression without clamping](../../docs/screenshots/session-11-interpolation.png)
+*Left to right: IDW (smooth blobs around stations), regression + residual IDW (follows land cover; water masked), the same unclamped (the densest core runs hotter: 34.3 vs 32.2 °C peak).*
+
+`size=512` JSON takes ~0.4 s; 64–128 is ~50 ms (dev server, demo city).
 
 ### `GET /api/raster/layers[?region=]`
 The raster catalog: `name, region, kind, unit, width_px, height_px, nodata, bbox, description`.
