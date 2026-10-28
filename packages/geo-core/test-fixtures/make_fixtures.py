@@ -35,3 +35,12 @@ write("grid4-uint8.tif", np.arange(1, 17, dtype="uint8").reshape(4, 4), 10, 54, 
 rows, cols = np.mgrid[0:200, 0:300]
 write("ramp-tiled.tif", (rows * 1000 + cols).astype("float32"), -122.55, 47.70, 0.001,
       nodata=-9999.0, compress="deflate", tiled=True, blockxsize=128, blockysize=128)
+
+# Covariate rasters for the interpolation tests: 40x40 over lon 10..11, lat 50..51 (0.025° cells), smooth and
+# deliberately *not* collinear so a regression on them is well posed.
+yy, xx = np.mgrid[0:40, 0:40].astype("float32")
+imp = 50 + 40 * np.sin(xx / 7.0) * np.cos(yy / 9.0)                      # 10..90
+can = 40 + 35 * np.cos(xx / 11.0 + 1.0) * np.sin(yy / 6.0 + 0.5)          # 5..75
+elev = 100 + 8 * xx + 60 * np.sin(yy / 5.0)                               # ~40..470
+for name, arr in (("cov-impervious.tif", imp), ("cov-canopy.tif", can), ("cov-elevation.tif", elev)):
+    write(name, arr.astype("float32"), 10, 51, 0.025, nodata=-9999.0)

@@ -11,6 +11,12 @@ export interface RegressionIdwOptions extends IdwOptions {
    * nearest-neighbour station spacing. Infinity disables the fade.
    */
   residualRangeM?: number;
+  /**
+   * Clamp each covariate to the range seen at the training stations before applying the trend (default true).
+   * A linear model extrapolated to conditions no station experienced (e.g. open water: zero canopy, zero
+   * impervious, zero elevation) can be wildly wrong; clamping bounds the damage.
+   */
+  clamp?: boolean;
 }
 
 export interface PreparedRegression {
@@ -18,6 +24,9 @@ export interface PreparedRegression {
   /** Stations with their regression residuals as `value`. */
   residuals: SamplePoint[];
   rangeM: number;
+  /** [min, max] of each covariate across the training stations. */
+  bounds: [number, number][];
+  clamp: boolean;
   opts: IdwOptions;
 }
 
@@ -49,18 +58,36 @@ export function prepareRegression(points: readonly SamplePoint[], covariates: re
   const residuals = pts.map((p, i) => ({ ...p, value: p.value - predictLinear(model, X[i]!) }));
   const nn = meanNearestNeighborM(pts);
   const rangeM = opts.residualRangeM ?? (Number.isFinite(nn) ? 2 * nn : Infinity);
-  const { ridge: _r, residualRangeM: _rr, ...idw } = opts;
-  return { model, residuals, rangeM, opts: idw };
+  const bounds = X[0]!.map((_, j): [number, number] => [Math.min(...X.map((r) => r[j]!)), Math.max(...X.map((r) => r[j]!))]);
+  const { ridge: _r, residualRangeM: _rr, clamp: _c, ...idw } = opts;
+  return { model, residuals, rangeM, bounds, clamp: opts.clamp ?? true, opts: idw };
 }
 
-/** Estimate at one location given its covariate values; null if they are non-finite or the IDW mask excludes it. */
-export function regressionPredict(prep: PreparedRegression, lon: number, lat: number, covariates: readonly number[]): number | null {
+/**
+ * Estimate at one location given its covariate values; also reports whether any covariate had to be clamped to
+ * the training range. Null if they are non-finite or the IDW mask excludes the location.
+ */
+export function regressionPredictDetail(prep: PreparedRegression, lon: number, lat: number, covariates: readonly number[]): { value: number; clamped: boolean } | null {
   if (!covariates.every(Number.isFinite)) return null;
-  const trend = predictLinear(prep.model, covariates);
+  let clamped = false;
+  const x = prep.clamp
+    ? covariates.map((v, j) => {
+        const [lo, hi] = prep.bounds[j]!;
+        const c = Math.min(Math.max(v, lo), hi);
+        if (c !== v) clamped = true;
+        return c;
+      })
+    : covariates;
+  const trend = predictLinear(prep.model, x);
   const r = idwDetail(prep.residuals, lon, lat, prep.opts);
   if (!r) return null;
   const fade = Number.isFinite(prep.rangeM) ? Math.exp(-((r.nearestM / prep.rangeM) ** 2)) : 1;
-  return trend + r.value * fade;
+  return { value: trend + r.value * fade, clamped };
+}
+
+/** Estimate at one location (see regressionPredictDetail). */
+export function regressionPredict(prep: PreparedRegression, lon: number, lat: number, covariates: readonly number[]): number | null {
+  return regressionPredictDetail(prep, lon, lat, covariates)?.value ?? null;
 }
 
 export interface RegressionGrid {
@@ -69,6 +96,8 @@ export interface RegressionGrid {
   /** The covariate-only surface (no residual correction). */
   trend: RasterGrid;
   rangeM: number;
+  /** Share (0..1) of estimated cells where a covariate was clamped to the station range, i.e. where the model extrapolates. */
+  clampedShare: number;
 }
 
 /**
@@ -95,16 +124,24 @@ export function regressionIdwGrid(
   const out = new Float32Array(ref.width * ref.height);
   const trend = new Float32Array(ref.width * ref.height);
   const cov = new Array<number>(covariateGrids.length);
+  let estimated = 0;
+  let clampedCells = 0;
   for (let r = 0; r < ref.height; r++) {
     const lat = north - (r + 0.5) * dy;
     for (let c = 0; c < ref.width; c++) {
       const i = r * ref.width + c;
       for (let k = 0; k < covariateGrids.length; k++) cov[k] = covariateGrids[k]!.data[i]!;
-      trend[i] = cov.every(Number.isFinite) ? predictLinear(prep.model, cov) : NaN;
-      out[i] = regressionPredict(prep, west + (c + 0.5) * dx, lat, cov) ?? NaN;
+      const est = regressionPredictDetail(prep, west + (c + 0.5) * dx, lat, cov);
+      out[i] = est?.value ?? NaN;
+      // The trend is the covariate-only surface (same clamping), for diagnostics.
+      trend[i] = cov.every(Number.isFinite) ? predictLinear(prep.model, prep.clamp ? cov.map((v, j) => Math.min(Math.max(v, prep.bounds[j]![0]), prep.bounds[j]![1])) : cov) : NaN;
+      if (est) {
+        estimated++;
+        if (est.clamped) clampedCells++;
+      }
     }
   }
-  return { grid: new RasterGrid(out, ref.width, ref.height, ref.bbox), trend: new RasterGrid(trend, ref.width, ref.height, ref.bbox), model: prep.model, rangeM: prep.rangeM };
+  return { grid: new RasterGrid(out, ref.width, ref.height, ref.bbox), trend: new RasterGrid(trend, ref.width, ref.height, ref.bbox), model: prep.model, rangeM: prep.rangeM, clampedShare: estimated ? clampedCells / estimated : 0 };
 }
 
 /** Leave-one-out error of regression + residual-IDW: the model is re-fitted on each fold's training stations. */

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { idwGrid, idwLeaveOneOut, type SamplePoint } from "./interpolate.js";
 import { RasterGrid } from "./raster-grid.js";
-import { meanNearestNeighborM, prepareRegression, regressionIdwGrid, regressionLeaveOneOut, regressionPredict } from "./regression-idw.js";
+import { meanNearestNeighborM, prepareRegression, regressionIdwGrid, regressionLeaveOneOut, regressionPredict, regressionPredictDetail } from "./regression-idw.js";
 
 const BBOX: [number, number, number, number] = [-122.5, 47.55, -122.4, 47.65];
 const W = 50;
@@ -135,4 +135,34 @@ test("meanNearestNeighborM", () => {
   const d = meanNearestNeighborM([{ lon: 0, lat: 0, value: 0 }, { lon: 0.001, lat: 0, value: 0 }, { lon: 0.01, lat: 0, value: 0 }]);
   // nearest distances: ~111 m, ~111 m, ~1000 m
   assert.ok(Math.abs(d - (111.2 + 111.2 + 1000.8) / 3) < 5, `${d}`);
+});
+
+test("covariates are clamped to the station range so out-of-range conditions can't extrapolate wildly", () => {
+  const { pts, cov } = stations(25, 6);
+  const prep = prepareRegression(pts, cov);
+  const [impLo, impHi] = prep.bounds[0]!;
+  const far = { lon: BBOX[0] - 0.2, lat: BBOX[1] - 0.2 }; // beyond residual influence, so the trend dominates
+  const at = (imp: number) => regressionPredictDetail(prep, far.lon, far.lat, [imp, cov[0]![1]!])!;
+  const hugeImp = at(impHi + 5000);
+  const edge = at(impHi);
+  assert.equal(hugeImp.clamped, true);
+  assert.equal(edge.clamped, false);
+  assert.equal(hugeImp.value, edge.value); // clamped to the same covariate => same estimate
+  assert.equal(at(impLo - 5000).value, at(impLo).value);
+  // Without clamping the same input extrapolates linearly (and differs).
+  const free = prepareRegression(pts, cov, { clamp: false });
+  const extrap = regressionPredictDetail(free, far.lon, far.lat, [impHi + 5000, cov[0]![1]!])!;
+  assert.equal(extrap.clamped, false);
+  assert.ok(Math.abs(extrap.value - edge.value) > 10, `${extrap.value} vs ${edge.value}`);
+});
+
+test("regressionIdwGrid reports how much of the surface is extrapolated", () => {
+  const { pts, cov } = stations(25, 6);
+  // Covariate grids that go far beyond anything the stations saw in the western half.
+  const wild = grid((lon, lat) => (lon < -122.45 ? imp(lon, lat) + 500 : imp(lon, lat)));
+  const reg = regressionIdwGrid(pts, cov, [wild, grid(canopy)]);
+  assert.ok(reg.clampedShare > 0.3 && reg.clampedShare < 1, `${reg.clampedShare}`);
+  const tame = regressionIdwGrid(pts, cov, [grid(imp), grid(canopy)]);
+  assert.ok(tame.clampedShare < reg.clampedShare);
+  assert.ok(reg.grid.data.every((v) => Number.isFinite(v) && v > 0 && v < 80), "no wild values");
 });
