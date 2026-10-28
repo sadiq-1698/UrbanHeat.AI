@@ -10,3 +10,4 @@ export * from "./tile.js";
 export * from "./png.js";
 export * from "./colormap.js";
 export * from "./render-tile.js";
+export * from "./regression.js";
