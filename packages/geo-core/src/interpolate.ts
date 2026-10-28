@@ -39,6 +39,11 @@ export function approxDistanceM(lon1: number, lat1: number, lon2: number, lat2: 
  * stations are that close their values are averaged.
  */
 export function idwAt(points: readonly SamplePoint[], lon: number, lat: number, opts: IdwOptions = {}): number | null {
+  return idwDetail(points, lon, lat, opts)?.value ?? null;
+}
+
+/** Like idwAt, but also reports the distance (m) to the nearest station. Null when beyond maxDistanceM. */
+export function idwDetail(points: readonly SamplePoint[], lon: number, lat: number, opts: IdwOptions = {}): { value: number; nearestM: number } | null {
   const { power = 2, neighbors = 12, maxDistanceM = Infinity } = opts;
   const k = Math.min(neighbors, points.length);
   const m = metersPerDegree(lat);
@@ -57,12 +62,13 @@ export function idwAt(points: readonly SamplePoint[], lon: number, lat: number, 
       bestV.pop();
     }
   }
-  if (bestD[0]! > maxDistanceM) return null;
-  if (bestD[0]! < EXACT_M) {
+  const nearestM = bestD[0]!;
+  if (nearestM > maxDistanceM) return null;
+  if (nearestM < EXACT_M) {
     let s = 0;
     let c = 0;
     for (let i = 0; i < bestD.length && bestD[i]! < EXACT_M; i++, c++) s += bestV[i]!;
-    return s / c;
+    return { value: s / c, nearestM };
   }
   let num = 0;
   let den = 0;
@@ -72,7 +78,7 @@ export function idwAt(points: readonly SamplePoint[], lon: number, lat: number, 
     num += w * bestV[i]!;
     den += w;
   }
-  return num / den;
+  return { value: num / den, nearestM };
 }
 
 /** IDW surface on a regular grid (cell centres; row 0 = north). NaN where the nearest station exceeds maxDistanceM. */
