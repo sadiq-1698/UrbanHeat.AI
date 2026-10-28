@@ -11,3 +11,4 @@ export * from "./png.js";
 export * from "./colormap.js";
 export * from "./render-tile.js";
 export * from "./regression.js";
+export * from "./interpolate.js";
