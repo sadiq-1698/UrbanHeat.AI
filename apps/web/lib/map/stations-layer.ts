@@ -1,5 +1,7 @@
 import type { FeatureCollection, Point } from "geojson";
 import { GeoJSONSource, type MapLayerMouseEvent, type MapLibreMap } from "maplibre-gl";
+import { INTENSITY_EXPRESSION, RADIUS_EXPRESSION, colorExpression as heatColors, weightExpression } from "./heatmap";
+import { beforeLayerFor } from "./layer-order";
 import { closePopup, openPopup } from "./popup";
 import { type ReadingMode, stationPopup, stationsUrl } from "./stations";
 import { type Domain, colorExpression, niceDomain } from "./temperature";
@@ -7,6 +9,7 @@ import { type Domain, colorExpression, niceDomain } from "./temperature";
 const SOURCE = "stations";
 export const STATIONS_CIRCLE = "stations-circle";
 const LABEL = "stations-label";
+const HEATMAP = "station-heatmap";
 
 export interface StationsStatus {
   state: "loading" | "ready" | "error";
@@ -24,6 +27,9 @@ export interface StationsLayerOptions {
   mode: ReadingMode;
   visible: boolean;
   opacity: number;
+  /** The kernel-density heat map drawn from the same station data. */
+  heatmapVisible: boolean;
+  heatmapOpacity: number;
   onStatus: (s: StationsStatus) => void;
 }
 
@@ -31,6 +37,8 @@ export interface StationsLayerHandle {
   setMode(mode: ReadingMode): void;
   setVisible(visible: boolean): void;
   setOpacity(opacity: number): void;
+  setHeatmapVisible(visible: boolean): void;
+  setHeatmapOpacity(opacity: number): void;
   refresh(): void;
   destroy(): void;
 }
@@ -46,6 +54,8 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
   let mode = opts.mode;
   let visible = opts.visible;
   let opacity = opts.opacity;
+  let heatVisible = opts.heatmapVisible;
+  let heatOpacity = opts.heatmapOpacity;
   let domain = niceDomain([]);
   let controller: AbortController | undefined;
   let hoveredId: string | number | undefined;
@@ -54,6 +64,24 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
   const vis = () => (visible ? "visible" : "none");
   const empty: FeatureCollection<Point> = { type: "FeatureCollection", features: [] };
   map.addSource(SOURCE, { type: "geojson", data: empty, promoteId: "station_id" });
+  // Kernel-density heat map on the same source (so both layers always show the same readings); it sits under
+  // the circles and under the basemap labels (see layer-order.ts).
+  map.addLayer(
+    {
+      id: HEATMAP,
+      type: "heatmap",
+      source: SOURCE,
+      layout: { visibility: heatVisible ? "visible" : "none" },
+      paint: {
+        "heatmap-weight": weightExpression(domain) as never,
+        "heatmap-radius": RADIUS_EXPRESSION as never,
+        "heatmap-intensity": INTENSITY_EXPRESSION as never,
+        "heatmap-color": heatColors() as never,
+        "heatmap-opacity": heatOpacity,
+      },
+    },
+    beforeLayerFor(map, "station-heatmap"),
+  );
   map.addLayer({
     id: STATIONS_CIRCLE,
     type: "circle",
@@ -102,6 +130,7 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
       const temps = fc.features.map((f) => (f.properties as Props | null)?.temp_c as number | null);
       domain = niceDomain(temps);
       map.setPaintProperty(STATIONS_CIRCLE, "circle-color", colorExpression(domain) as never);
+      map.setPaintProperty(HEATMAP, "heatmap-weight", weightExpression(domain) as never);
       (map.getSource(SOURCE) as GeoJSONSource).setData(fc);
       opts.onStatus({ state: "ready", count: fc.features.length, withReading: temps.filter((t) => typeof t === "number").length, domain });
     } catch (err) {
@@ -150,6 +179,14 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
       map.setPaintProperty(STATIONS_CIRCLE, "circle-stroke-opacity", opacity);
       if (hasGlyphs) map.setPaintProperty(LABEL, "text-opacity", opacity);
     },
+    setHeatmapVisible(next) {
+      heatVisible = next;
+      map.setLayoutProperty(HEATMAP, "visibility", heatVisible ? "visible" : "none");
+    },
+    setHeatmapOpacity(next) {
+      heatOpacity = next;
+      map.setPaintProperty(HEATMAP, "heatmap-opacity", heatOpacity);
+    },
     refresh() {
       void load();
     },
@@ -160,7 +197,7 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
       map.off("mouseleave", STATIONS_CIRCLE, onLeave);
       map.off("click", STATIONS_CIRCLE, onClick);
       try {
-        for (const id of [LABEL, STATIONS_CIRCLE]) if (map.getLayer(id)) map.removeLayer(id);
+        for (const id of [LABEL, STATIONS_CIRCLE, HEATMAP]) if (map.getLayer(id)) map.removeLayer(id);
         if (map.getSource(SOURCE)) map.removeSource(SOURCE);
       } catch {
         /* map already removed */

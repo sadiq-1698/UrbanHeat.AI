@@ -107,6 +107,8 @@ export default function Home() {
       mode: live.current.mode,
       visible: live.current.visible.stations,
       opacity: live.current.opacity.stations,
+      heatmapVisible: false, // wired to the layer list in the next commit
+      heatmapOpacity: 0.8,
       onStatus: setStationStatus,
     });
     stationsRef.current = layer;
