@@ -37,6 +37,8 @@ export interface StationsLayerHandle {
   setMode(mode: ReadingMode): void;
   setVisible(visible: boolean): void;
   setOpacity(opacity: number): void;
+  /** Use this colour domain (e.g. the temperature surface's, so both layers share one scale); null = derive from the readings. */
+  setDomain(domain: Domain | null): void;
   setHeatmapVisible(visible: boolean): void;
   setHeatmapOpacity(opacity: number): void;
   refresh(): void;
@@ -57,6 +59,12 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
   let heatVisible = opts.heatmapVisible;
   let heatOpacity = opts.heatmapOpacity;
   let domain = niceDomain([]);
+  let override: Domain | null = null;
+  const applyDomain = () => {
+    const d = override ?? domain;
+    map.setPaintProperty(STATIONS_CIRCLE, "circle-color", colorExpression(d) as never);
+    map.setPaintProperty(HEATMAP, "heatmap-weight", weightExpression(d) as never);
+  };
   let controller: AbortController | undefined;
   let hoveredId: string | number | undefined;
   let destroyed = false;
@@ -129,8 +137,7 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
       if (mine.signal.aborted || destroyed) return;
       const temps = fc.features.map((f) => (f.properties as Props | null)?.temp_c as number | null);
       domain = niceDomain(temps);
-      map.setPaintProperty(STATIONS_CIRCLE, "circle-color", colorExpression(domain) as never);
-      map.setPaintProperty(HEATMAP, "heatmap-weight", weightExpression(domain) as never);
+      applyDomain();
       (map.getSource(SOURCE) as GeoJSONSource).setData(fc);
       opts.onStatus({ state: "ready", count: fc.features.length, withReading: temps.filter((t) => typeof t === "number").length, domain });
     } catch (err) {
@@ -178,6 +185,10 @@ export function attachStations(map: MapLibreMap, opts: StationsLayerOptions): St
       map.setPaintProperty(STATIONS_CIRCLE, "circle-opacity", opacity);
       map.setPaintProperty(STATIONS_CIRCLE, "circle-stroke-opacity", opacity);
       if (hasGlyphs) map.setPaintProperty(LABEL, "text-opacity", opacity);
+    },
+    setDomain(next) {
+      override = next;
+      applyDomain();
     },
     setHeatmapVisible(next) {
       heatVisible = next;

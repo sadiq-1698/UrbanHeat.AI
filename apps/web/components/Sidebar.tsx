@@ -8,6 +8,8 @@ export interface SidebarProps {
   regions: Region[];
   regionId: string;
   onRegionChange: (id: string) => void;
+  /** The reading (time) that drives the station layers and the temperature surface. */
+  reading: ReactNode;
   /** Layer toggles and per-layer controls. */
   layers: ReactNode;
   /** One legend block per visible layer. */
@@ -15,7 +17,7 @@ export interface SidebarProps {
   className?: string;
 }
 
-export function Sidebar({ regions, regionId, onRegionChange, layers, legends, className }: SidebarProps) {
+export function Sidebar({ regions, regionId, onRegionChange, reading, layers, legends, className }: SidebarProps) {
   const region = regions.find((r) => r.id === regionId);
   return (
     <aside className={`${styles.sidebar} ${className ?? ""}`} aria-label="Map controls">
@@ -37,6 +39,11 @@ export function Sidebar({ regions, regionId, onRegionChange, layers, legends, cl
             <span className={styles.badge}>Synthetic data</span> Generated demo city — patterns are plausible, not measured.
           </p>
         )}
+      </section>
+
+      <section className={styles.section}>
+        <h2>Reading</h2>
+        {reading}
       </section>
 
       <section className={styles.section}>
