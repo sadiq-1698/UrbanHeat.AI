@@ -12,13 +12,16 @@ export const pad2 = (n: number) => String(n).padStart(2, "0");
 
 export const hourToIso = (date: string, hour: number): string => `${date}T${pad2(hour)}:00:00Z`;
 
+/** The query parameters that select a reading; shared by /api/stations and /api/interpolate. */
+export function readingParams(mode: ReadingMode): [string, string][] {
+  if (mode.kind === "hour") return [["at", hourToIso(mode.date, mode.hour)]];
+  if (mode.kind === "day") return [["date", mode.date], ["agg", mode.agg]];
+  return [];
+}
+
 export function stationsUrl(region: string, mode: ReadingMode): string {
   const p = new URLSearchParams({ region, limit: "5000" });
-  if (mode.kind === "hour") p.set("at", hourToIso(mode.date, mode.hour));
-  else if (mode.kind === "day") {
-    p.set("date", mode.date);
-    p.set("agg", mode.agg);
-  }
+  for (const [k, v] of readingParams(mode)) p.set(k, v);
   return `/api/stations?${p}`;
 }
 
