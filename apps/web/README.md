@@ -6,7 +6,7 @@ Next.js 16 (App Router) app: the Node backend (route handlers under `app/api`) a
 ```bash
 npm run dev -w @urbanheat/web          # http://localhost:3000
 npm run typecheck -w @urbanheat/web
-npm test -w @urbanheat/web             # 96 tests; DB-backed ones report "skipped" if the demo city isn't loaded
+npm test -w @urbanheat/web             # 107 tests; DB-backed ones report "skipped" if the demo city isn't loaded
 ```
 
 > Next 16 differs from older versions; `AGENTS.md` points at the bundled docs in
@@ -65,7 +65,8 @@ impervious/canopy/elevation when the region has those rasters, else IDW, with `m
 - `json` (default): `{ method, methodNote, stationsUsed, bbox, width, height, stats, cv, model, extrapolatedShare, waterMaskedCells }`, plus `values` (row-major, north first) with `values=true`.
   `cv` is leave-one-out RMSE/MAE/bias for both methods, so the response states how good the surface is. `model` has the fitted coefficients and R².
 - `geojson`: cell-centre `Point` features with `temp_c` (size ≤ 100; empty cells omitted).
-- `png`: the surface as an image over `bbox` in the temperature ramp, with `X-Temp-Min`/`X-Temp-Max`/`X-Bbox` headers (`vmin`+`vmax` override the domain).
+- `png`: the surface as an image over `bbox` in the temperature ramp (`vmin`+`vmax` override the domain). Response headers describe it so a client needs no second request:
+  `X-Temp-Min`/`X-Temp-Max` (color domain), `X-Bbox`, `X-Method`, `X-Stations`, `X-Cv-Rmse` (leave-one-out RMSE of the method used), `X-Cv-Idw-Rmse`, `X-Water-Masked-Cells`, `X-Extrapolated-Share`.
   Rows are evenly spaced in latitude, so overlay it as an image source over a city-sized bbox, not as Mercator tiles.
 
 Open-water cells (the region's `land_cover` class `water`) are left empty: a surface built from land stations says nothing about air over water.
@@ -208,6 +209,32 @@ the region's bounds, drawn beneath land cover, stations and the basemap's labels
   ~20–35 ms, a cached tile ~4 ms, a `304` ~3 ms; 30 sequential z13 tiles averaged 18 ms.
 - Tiles are 40–85 KB at z12–13 because smooth gradients don't compress well as 32-bit PNG; paletted PNG would shrink
   them but isn't implemented.
+
+## Temperature surface and heat map (Session 12)
+
+![Interpolated temperature surface with station readings](../../docs/screenshots/session-12-surface.png)
+
+The default view is now the **temperature surface**: `/api/interpolate?format=png` drawn as a MapLibre image source over the region, with the station
+circles on top. One **Reading** section (latest / specific hour / daily max-mean-min) drives the stations, the heat map and the surface together, so they
+can never disagree about the time. The surface layer has a **method** picker (Automatic / IDW / Land-cover regression) and states what the server actually
+used and how accurate it is, straight from the PNG's response headers, e.g. *"Regression · 24 stations · 18% extrapolated. Held-out error: 0.56 °C with
+regression vs 0.91 °C for plain IDW. Open water is left empty."* Land cover and the raster overlay are still there, off by default.
+
+- **One color scale for everything temperature-coloured.** Station circles and the surface used to adapt their scales independently, so a 29 °C circle
+  and a 29 °C surface cell were different colors once they overlaid by default. When the surface is showing, the stations adopt its domain
+  (`setDomain`), and there is a single Temperature legend. Where a reading agrees with the surface, its circle blends into it, which is the point.
+- **The surface is fetched by the app, not by MapLibre,** so the headers can drive the legend and the note, errors such as "No stations with a reading
+  at that time" are shown (with **Retry**) instead of a blank layer, and a superseded request is aborted. Nothing is requested while the layer is hidden;
+  changes made while hidden apply once, when it is shown again (verified: 0 requests while hidden, 1 on re-show). The image is stretched between the
+  region's corners in Mercator, a sub-pixel distortion at city scale (it would not be for a continental bbox).
+- **Heat map** (off by default) is a MapLibre `heatmap` layer on the *same GeoJSON source* as the station circles, so both always show the same readings,
+  weighted by normalized temperature. It is honest about what it is: a kernel density of stations, **not** an estimated temperature (the note says so;
+  use the surface for estimates). Two things were wrong at first and were fixed by looking at it: kernels were too small to overlap (24 isolated glows, with
+  the *hottest* stations showing cool-blue halos), because on-screen station spacing doubles per zoom level so the radius must too; and the blue fringe where
+  there are no stations meant "few stations", not "cool", so the cool end of its ramp is now mostly transparent.
+- **Layer stacking is explicit** (`lib/map/layer-order.ts`): raster overlay < land cover < surface < heat map < station circles/labels, with everything but
+  the station layers beneath the basemap's labels. Each controller asks `beforeLayerFor(map, id)`, so the order is the same whichever effect runs first. A test
+  adds the layers in several orders (and onto a basemap with no labels) and checks the stack; it caught two real placement bugs while it was being written.
 
 ## Layout
 
