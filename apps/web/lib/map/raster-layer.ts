@@ -1,5 +1,6 @@
 import type { MapEventType, MapLibreMap, RasterTileSource } from "maplibre-gl";
 import type { BBox } from "./geo";
+import { beforeLayerFor } from "./layer-order";
 import { tileUrlTemplate } from "./raster";
 
 const SOURCE = "raster-overlay";
@@ -29,12 +30,6 @@ export interface RasterLayerHandle {
   destroy(): void;
 }
 
-/** Layer id to insert under, so the overlay sits beneath land cover, stations and the basemap's labels. */
-function beforeId(map: MapLibreMap): string | undefined {
-  if (map.getLayer("land-cover-fill")) return "land-cover-fill";
-  return map.getStyle().layers.find((l) => l.type === "symbol")?.id;
-}
-
 /**
  * A raster tile overlay served by /api/raster/tile. Switching kind swaps the source's tile URL in place.
  * While hidden, MapLibre doesn't fetch tiles for it.
@@ -60,7 +55,7 @@ export function attachRaster(map: MapLibreMap, opts: RasterLayerOptions): Raster
       layout: { visibility: visible ? "visible" : "none" },
       paint: { "raster-opacity": opts.opacity, "raster-fade-duration": 150 },
     },
-    beforeId(map),
+    beforeLayerFor(map, "raster-overlay"),
   );
 
   const onSourceData = (e: MapEventType["sourcedata"]) => {

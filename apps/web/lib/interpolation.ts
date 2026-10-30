@@ -266,3 +266,25 @@ export function toPng(r: InterpolationResult, vmin?: number, vmax?: number): { p
   }
   return { png: encodePng(rgba, g.width, g.height), domain };
 }
+
+/**
+ * Metadata for the PNG response, so a client can label the image without a second (recomputing) request:
+ * colour domain, extent, method, station count, and leave-one-out RMSE of the method used and of plain IDW.
+ */
+export function pngHeaders(r: InterpolationResult, domain: readonly [number, number]): Record<string, string> {
+  const rmse = (m: Metrics | null) => (m && Number.isFinite(m.rmse) ? m.rmse.toFixed(3) : "");
+  const used = r.method === "regression" ? r.cv.regression : r.cv.idw;
+  const h: Record<string, string> = {
+    "X-Temp-Min": String(domain[0]),
+    "X-Temp-Max": String(domain[1]),
+    "X-Bbox": r.bbox.join(","),
+    "X-Method": r.method,
+    "X-Stations": String(r.stationsUsed),
+    "X-Cv-Rmse": rmse(used),
+    "X-Cv-Idw-Rmse": rmse(r.cv.idw),
+    "X-Water-Masked-Cells": String(r.waterMaskedCells),
+  };
+  if (r.extrapolatedShare !== undefined) h["X-Extrapolated-Share"] = r.extrapolatedShare.toFixed(3);
+  h["Access-Control-Expose-Headers"] = Object.keys(h).join(", ");
+  return h;
+}

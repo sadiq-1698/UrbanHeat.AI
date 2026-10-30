@@ -2,6 +2,7 @@ import { GeoJSONSource, type MapLayerMouseEvent, type MapLibreMap } from "maplib
 import type { FeatureCollection } from "geojson";
 import { type BBox, bboxContains, padBBox, viewportToBBox } from "./geo";
 import { colorExpression, landCoverUrl, popupRows, zoomBucket } from "./landcover";
+import { beforeLayerFor } from "./layer-order";
 import { closePopup, openPopup } from "./popup";
 
 const SOURCE = "land-cover";
@@ -33,11 +34,6 @@ export interface LandCoverLayerHandle {
   destroy(): void;
 }
 
-/** Id of the first label layer, so analysis layers can sit under the basemap's text. */
-function firstSymbolLayerId(map: MapLibreMap): string | undefined {
-  return map.getStyle().layers.find((l) => l.type === "symbol")?.id;
-}
-
 /**
  * Owns the land cover source/layers on `map`: loads polygons for the current viewport (debounced,
  * padded, cancelling superseded requests), re-fetches when the view leaves the loaded area or the
@@ -53,7 +49,6 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
   let destroyed = false;
 
   const empty: FeatureCollection = { type: "FeatureCollection", features: [] };
-  const before = firstSymbolLayerId(map);
   map.addSource(SOURCE, { type: "geojson", data: empty, promoteId: "id" });
   map.addLayer(
     {
@@ -66,7 +61,7 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
         "fill-opacity": ["case", ["boolean", ["feature-state", "hover"], false], Math.min(opacity + 0.2, 1), opacity],
       },
     },
-    before,
+    beforeLayerFor(map, "land-cover-fill"),
   );
   map.addLayer(
     {
@@ -80,7 +75,7 @@ export function attachLandCover(map: MapLibreMap, opts: LandCoverLayerOptions): 
         "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.2, 14, 1],
       },
     },
-    before,
+    beforeLayerFor(map, "land-cover-line"),
   );
 
   const applyOpacity = () => {

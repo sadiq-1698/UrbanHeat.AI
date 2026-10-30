@@ -4,7 +4,7 @@ import path from "node:path";
 import { RasterStore } from "@urbanheat/geo-core";
 import type { Pool } from "pg";
 import { ApiError } from "./http";
-import { gridSize, interpolateQuery, runInterpolation, toGeoJson, toJson, toPng, type InterpolateParams } from "./interpolation";
+import { gridSize, interpolateQuery, pngHeaders, runInterpolation, toGeoJson, toJson, toPng, type InterpolateParams } from "./interpolation";
 
 const FIXTURES = path.resolve(__dirname, "../../../packages/geo-core/test-fixtures");
 const store = new RasterStore(FIXTURES);
@@ -235,4 +235,31 @@ test("no water polygons => nothing masked; json reports the mask and extrapolati
   assert.ok(j.extrapolatedShare >= 0 && j.extrapolatedShare <= 1);
   const idw = toJson(await runInterpolation({ pool: fakePool(stations), store }, params({ size: "24", method: "idw" })), false) as Record<string, any>;
   assert.equal(idw.extrapolatedShare, undefined);
+});
+
+test("pngHeaders describe the image: domain, method, CV error, and exposed header names", async () => {
+  const stations = await plantedStations();
+  const reg = await runInterpolation({ pool: fakePool(stations, CATALOG, BBOX, [LAKE]), store }, params({ size: "24" }));
+  const h = pngHeaders(reg, [20, 30]);
+  assert.equal(h["X-Temp-Min"], "20");
+  assert.equal(h["X-Temp-Max"], "30");
+  assert.equal(h["X-Method"], "regression");
+  assert.equal(h["X-Stations"], String(stations.length));
+  assert.equal(h["X-Cv-Rmse"], reg.cv.regression!.rmse.toFixed(3));
+  assert.equal(h["X-Cv-Idw-Rmse"], reg.cv.idw!.rmse.toFixed(3));
+  assert.equal(h["X-Water-Masked-Cells"], String(reg.waterMaskedCells));
+  assert.ok(Number(h["X-Water-Masked-Cells"]) > 0);
+  assert.match(h["X-Extrapolated-Share"]!, /^\d\.\d{3}$/);
+  assert.deepEqual(h["X-Bbox"]!.split(",").map(Number), [...BBOX]);
+  // every X-* header is listed so browsers let fetch() read them
+  const exposed = h["Access-Control-Expose-Headers"]!.split(", ");
+  for (const k of Object.keys(h).filter((k) => k.startsWith("X-"))) assert.ok(exposed.includes(k), k);
+
+  const idw = await runInterpolation({ pool: fakePool(stations), store }, params({ size: "24", method: "idw" }));
+  const hi = pngHeaders(idw, [20, 30]);
+  assert.equal(hi["X-Method"], "idw");
+  assert.equal(hi["X-Cv-Rmse"], idw.cv.idw!.rmse.toFixed(3)); // IDW's own error is "the method used"
+  assert.equal(hi["X-Extrapolated-Share"], undefined);
+  const two = await runInterpolation({ pool: fakePool(stations.slice(0, 2)), store }, params({ size: "16", method: "idw" }));
+  assert.equal(pngHeaders(two, [20, 30])["X-Cv-Rmse"], ""); // no CV with < 3 stations
 });
