@@ -13,3 +13,4 @@ export * from "./render-tile.js";
 export * from "./regression.js";
 export * from "./interpolate.js";
 export * from "./regression-idw.js";
+export * from "./features.js";

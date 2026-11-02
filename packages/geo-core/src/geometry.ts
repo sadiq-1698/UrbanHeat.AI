@@ -7,7 +7,7 @@ export type Area = Polygon | MultiPolygon;
 /** One polygon as GeoJSON rings: [outer, ...holes]. */
 export type Rings = Position[][];
 
-const EARTH_RADIUS_M = 6_371_008.8; // same mean radius turf uses
+export const EARTH_RADIUS_M = 6_371_008.8; // same mean radius turf uses
 const RAD = Math.PI / 180;
 
 /** Accepts a Polygon/MultiPolygon geometry or a Feature wrapping one. */
