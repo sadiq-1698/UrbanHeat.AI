@@ -25,6 +25,7 @@ docker compose up -d
 (cd db/ingest && .venv/bin/python -m demo_city.generate && .venv/bin/python -m demo_city.load)
 docker compose exec postgis pg_isready -U urbanheat_admin -d urbanheat
 npm run typecheck && npm test
+(cd ml && python3 -m virtualenv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/python -W ignore -m unittest discover -s tests -t .)
 npm run dev -w @urbanheat/web   # http://localhost:3000
 ```
 
@@ -44,6 +45,7 @@ Requires Node >= 20, Docker, and Python 3 (for `ml/` and `db/ingest`).
 - [x] Session 10 — Raster overlay: on-the-fly PNG tiles (`/api/raster/tile`, `/api/raster/legend`) with LRU + ETag, Mercator tile renderer and PNG encoder in `geo-core`, overlay layer with picker and legend
 - [x] Session 11 — Interpolation: IDW and regression + residual-IDW surfaces from stations, leave-one-out cross-validation, `/api/interpolate` (json / geojson / png), covariate clamping, open-water masking
 - [x] Session 12 — Heat map & surface in the UI: interpolated temperature surface (method picker, accuracy note from response headers), station heat map, one shared reading and color scale, explicit layer stacking
-- [ ] 13–16 Features, training, ONNX inference, predict API
+- [x] Session 13 — Features: 12 per-cell features (own + neighbourhood canopy/impervious, elevation/relief, distance to water), `ml/build_dataset` (anomaly target, spatial-block folds), TypeScript port with Python-generated golden parity (see [ml/README.md](ml/README.md))
+- [ ] 14–16 Training, ONNX inference, predict API
 - [ ] 17–18 Scenario simulator, risk & hotspots
 - [ ] 19–20 Hardening, verification, write-up

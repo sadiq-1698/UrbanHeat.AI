@@ -1,12 +1,12 @@
 # @urbanheat/geo-core
 
 Framework-free spatial logic shared by the API routes. ESM, TypeScript, tested
-with `node:test`. Raster (Session 5), vector/zonal (Session 6) and tile rendering (Session 10) and interpolation (Session 11) are
+with `node:test`. Raster (Session 5), vector/zonal (Session 6) and tile rendering (Session 10) and interpolation (Session 11) and model features (Session 13) are
 below; features, and ONNX inference arrive in later sessions.
 
 ```bash
 npm run typecheck -w @urbanheat/geo-core
-npm test -w @urbanheat/geo-core     # 103 tests; 3 integration tests skip if data/ isn't generated
+npm test -w @urbanheat/geo-core     # 114 tests; 3 integration tests skip if data/ isn't generated
 ```
 
 ## Raster API
@@ -135,3 +135,14 @@ How the regression variant behaves, and why:
 
 Limits: IDW costs O(stations x neighbors) per cell (fine to a couple of thousand stations); distances are equirectangular at the target latitude
 (city scale); the regression is linear in the covariates (no interactions or nonlinearity; that is what the Session 14 model is for).
+
+## Model features (Session 13)
+
+`buildFeatures({ canopy, impervious, elevation, water }, cellSizeM(resLon, resLat, latCenter))` computes the 12 per-cell features the heat model
+consumes (own and neighbourhood canopy/impervious cover, elevation and relief, distance to water, water fraction), as one `Float64Array` per feature
+in `FEATURE_NAMES` order. Building blocks: `boxMean` / `boxFraction` (integral-image window statistics that average only valid cells and clip at the
+edge), `distanceToMask` (exact Euclidean distance transform by Felzenszwalb & Huttenlocher, with separate x/y cell sizes), `cellSizeM`, `halfWidths`.
+
+This is a port of `ml/urbanheat_ml/features.py`, whose docstring is the specification. Parity is enforced by a Python-generated golden fixture
+(`test-fixtures/features-golden.json`, tolerance 1e-9, NaN pattern included) and was checked end to end against all 40 266 rows of the demo dataset.
+Rounding is "half up" (`floor(x + 0.5)`) in both languages because `Math.round` and Python's `round` disagree at .5. About 30 ms for a 240 x 180 grid.
